@@ -38,8 +38,7 @@ function MakeLogisticEntity(entity, name, pictureFilename, pictureTablePath, ico
 			ingredients =
 			{
 			  {"steel-chest", 1},
-			  {"electronic-circuit", 3},
-			  {"advanced-circuit", 1}
+			  {"electronic-circuit", 50}
 			},
 			result = name,
 			requester_paste_multiplier = 4
@@ -207,8 +206,7 @@ data:extend{
     ingredients =
     {
       {"decider-combinator", 1},
-      {"electronic-circuit", 3},
-      {"advanced-circuit", 1}
+      {"electronic-circuit", 50}
     },
     result = TX_COMBINATOR_NAME,
     requester_paste_multiplier = 1
@@ -270,8 +268,7 @@ data:extend{
     ingredients =
     {
       {"constant-combinator", 1},
-      {"electronic-circuit", 3},
-      {"advanced-circuit", 1}
+      {"electronic-circuit", 50}
     },
     result = INV_COMBINATOR_NAME,
     requester_paste_multiplier = 1
