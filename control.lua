@@ -39,10 +39,10 @@ function AddEntity(entity)
 		global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
 	elseif entity.name == RX_COMBINATOR_NAME then
 		global.rxControls[entity.unit_number] = entity.get_or_create_control_behavior()
-    entity.operable=false
-  elseif entity.name == INV_COMBINATOR_NAME then
-    global.invControls[entity.unit_number] = entity.get_or_create_control_behavior()
-    entity.operable=false
+		entity.operable=false
+	elseif entity.name == INV_COMBINATOR_NAME then
+		global.invControls[entity.unit_number] = entity.get_or_create_control_behavior()
+		entity.operable=false
 	end
 end
 
