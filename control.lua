@@ -58,13 +58,13 @@ function OnKilledEntity(event)
 			global.inputTanks[entity.unit_number] = nil
 		elseif entity.name == OUTPUT_TANK_NAME then
 			global.outputTanks[entity.unit_number] = nil
-    elseif entity.name == TX_COMBINATOR_NAME then
-  		global.txControls[entity.unit_number] = nil
-  	elseif entity.name == RX_COMBINATOR_NAME then
-  		global.rxControls[entity.unit_number] = nil
-    elseif entity.name == INV_COMBINATOR_NAME then
-      global.invControls[entity.unit_number] = nil
-    end
+		elseif entity.name == TX_COMBINATOR_NAME then
+			global.txControls[entity.unit_number] = nil
+		elseif entity.name == RX_COMBINATOR_NAME then
+			global.rxControls[entity.unit_number] = nil
+		elseif entity.name == INV_COMBINATOR_NAME then
+			global.invControls[entity.unit_number] = nil
+		end
 	end
 end
 
@@ -91,18 +91,18 @@ end)
 
 
 script.on_init(function()
-  Reset()
+	Reset()
 end)
 
 script.on_configuration_changed(function(data)
-  if data.mod_changes and data.mod_changes["clusterio"] then
-    Reset()
-  end
+	if data.mod_changes and data.mod_changes["clusterio"] then
+		Reset()
+	end
 end)
 
 script.on_event(defines.events.on_tick, function(event)
-  -- TX Combinators must run every tick to catch single pulses
-  HandleTXCombinators()
+	-- TX Combinators must run every tick to catch single pulses
+	HandleTXCombinators()
 
 	local todo = game.tick % UPDATE_RATE
 
@@ -125,16 +125,46 @@ script.on_event(defines.events.on_tick, function(event)
 		ExportInputList()
 	elseif todo == 5 then
 		ExportOutputList()
-  end
-
-  local rxstate = game.tick % CIRCUIT_UPDATE_RATE
-  -- RX Combinators are set and then cleared on sequential ticks to create pulses
-  if rxstate == 0 then
-    SetRXCombinators()
-  elseif rxstate == 1 then
-    ClearRXCombinators()
+	elseif todo == 6 then
+		ExportFluidFlows()
+	elseif todo == 7 then
+		ExportItemFlows()
+	end
+	
+	local rxstate = game.tick % CIRCUIT_UPDATE_RATE
+	-- RX Combinators are set and then cleared on sequential ticks to create pulses
+	if rxstate == 0 then
+		SetRXCombinators()
+	elseif rxstate == 1 then
+		ClearRXCombinators()
 	end
 end)
+	
+function ExportItemFlows()
+	local flowreport = {type="item",flows={}}
+ 
+	for _,force in pairs(game.forces) do
+		flowreport.flows[force.name] = {
+			input_counts = force.item_production_statistics.input_counts,
+			output_counts = force.item_production_statistics.output_counts,
+		}
+	end
+ 
+	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
+end
+
+function ExportFluidFlows()
+	local flowreport = {type="fluid",flows={}}
+	
+	for _,force in pairs(game.forces) do
+		flowreport.flows[force.name] = {
+			input_counts = force.fluid_production_statistics.input_counts,
+			output_counts = force.fluid_production_statistics.output_counts,
+		}
+	end
+ 
+	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
+end
 
 function GetOnlinePlayerCount()
 	local onlinePlayers = 0
@@ -154,12 +184,12 @@ function Reset()
 	global.inputChests = {}
 	global.outputChests = {}
 
-  global.inputTanks = {}
+	global.inputTanks = {}
 	global.outputTanks = {}
 
-  global.rxControls = {}
-  global.txControls = {}
-  global.invControls = {}
+	global.rxControls = {}
+	global.txControls = {}
+	global.invControls = {}
 
 	AddAllEntitiesOfName(INPUT_CHEST_NAME)
 	AddAllEntitiesOfName(OUTPUT_CHEST_NAME)
@@ -167,9 +197,9 @@ function Reset()
 	AddAllEntitiesOfName(INPUT_TANK_NAME)
 	AddAllEntitiesOfName(OUTPUT_TANK_NAME)
 
-  AddAllEntitiesOfName(RX_COMBINATOR_NAME)
-  AddAllEntitiesOfName(TX_COMBINATOR_NAME)
-  AddAllEntitiesOfName(INV_COMBINATOR_NAME)
+	AddAllEntitiesOfName(RX_COMBINATOR_NAME)
+	AddAllEntitiesOfName(TX_COMBINATOR_NAME)
+	AddAllEntitiesOfName(INV_COMBINATOR_NAME)
 	game.print("reset")
 end
 
@@ -338,138 +368,138 @@ end
 
 
 function AddFrameToRXBuffer(frame)
-  -- Add a frame to the buffer. return remaining space in buffer
-  local validsignals = {
-    ["virtual"] = game.virtual_signal_prototypes,
-    ["fluid"]   = game.fluid_prototypes,
-    ["item"]    = game.item_prototypes
-  }
+	-- Add a frame to the buffer. return remaining space in buffer
+	local validsignals = {
+		["virtual"] = game.virtual_signal_prototypes,
+		["fluid"]	 = game.fluid_prototypes,
+		["item"]		= game.item_prototypes
+	}
 
-  global.rxBuffer = global.rxBuffer or {}
+	global.rxBuffer = global.rxBuffer or {}
 
-  -- if buffer is full, drop frame
-  if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
+	-- if buffer is full, drop frame
+	if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
 
-  -- frame = {{count=42,name="signal-grey",type="virtual"},{...},...}
-  local signals = {}
-  local index = 1
+	-- frame = {{count=42,name="signal-grey",type="virtual"},{...},...}
+	local signals = {}
+	local index = 1
 
-  for _,signal in pairs(frame) do
-    if validsignals[signal.type] and validsignals[signal.type][signal.name] then
-      signals[index] =
-        {
-          index=index,
-          count=signal.count,
-          signal={ name=signal.name, type=signal.type }
-        }
-      index = index + 1
-      --TODO: break if too many?
-      --TODO: error token on mismatched signals? maybe mismatch1-n signals?
-    end
-  end
+	for _,signal in pairs(frame) do
+		if validsignals[signal.type] and validsignals[signal.type][signal.name] then
+			signals[index] =
+				{
+					index=index,
+					count=signal.count,
+					signal={ name=signal.name, type=signal.type }
+				}
+			index = index + 1
+			--TODO: break if too many?
+			--TODO: error token on mismatched signals? maybe mismatch1-n signals?
+		end
+	end
 
-  if index > 1 then table.insert(global.rxBuffer,signals) end
+	if index > 1 then table.insert(global.rxBuffer,signals) end
 
-  return MAX_RX_BUFFER_SIZE - #global.rxBuffer
+	return MAX_RX_BUFFER_SIZE - #global.rxBuffer
 end
 
 function HandleTXCombinators()
-  -- Check all TX Combinators, and if condition satisfied, add frame to transmit buffer
+	-- Check all TX Combinators, and if condition satisfied, add frame to transmit buffer
 
-  -- frame = {{count=42,name="signal-grey",type="virtual"},{...},...}
-  local signals = {["item"]={},["virtual"]={},["fluid"]={}}
-  for i,txControl in pairs(global.txControls) do
-    if txControl.valid then
-      local frame = txControl.signals_last_tick
-      if frame then
-        for _,signal in pairs(frame) do
-          signals[signal.signal.type][signal.signal.name]=
-            (signals[signal.signal.type][signal.signal.name] or 0) + signal.count
-        end
-      end
-    end
-  end
+	-- frame = {{count=42,name="signal-grey",type="virtual"},{...},...}
+	local signals = {["item"]={},["virtual"]={},["fluid"]={}}
+	for i,txControl in pairs(global.txControls) do
+		if txControl.valid then
+			local frame = txControl.signals_last_tick
+			if frame then
+				for _,signal in pairs(frame) do
+					signals[signal.signal.type][signal.signal.name]=
+						(signals[signal.signal.type][signal.signal.name] or 0) + signal.count
+				end
+			end
+		end
+	end
 
-  local frame = {}
-  for type,arr in pairs(signals) do
-    for name,count in pairs(arr) do
-      table.insert(frame,{count=count,name=name,type=type})
-    end
-  end
+	local frame = {}
+	for type,arr in pairs(signals) do
+		for name,count in pairs(arr) do
+			table.insert(frame,{count=count,name=name,type=type})
+		end
+	end
 
-  if #frame > 0 then
-    if global.worldID then
-      table.insert(frame,1,{count=global.worldID,name="signal-srcid",type="virtual"})
-    end
-    table.insert(frame,{count=game.tick,name="signal-srctick",type="virtual"})
-    game.write_file(TX_BUFFER_FILE, json:encode(frame).."\n", true, global.write_file_player or 0)
+	if #frame > 0 then
+		if global.worldID then
+			table.insert(frame,1,{count=global.worldID,name="signal-srcid",type="virtual"})
+		end
+		table.insert(frame,{count=game.tick,name="signal-srctick",type="virtual"})
+		game.write_file(TX_BUFFER_FILE, json:encode(frame).."\n", true, global.write_file_player or 0)
 
-    -- Loopback for testing
-    --AddFrameToRXBuffer(frame)
+		-- Loopback for testing
+		--AddFrameToRXBuffer(frame)
 
-  end
+	end
 end
 
 function SetRXCombinators()
-  -- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
-  if global.rxBuffer and #global.rxBuffer > 0 then
-    local frame = table.remove(global.rxBuffer)
-    for i,rxControl in pairs(global.rxControls) do
-      if rxControl.valid then
-        rxControl.parameters={parameters=frame}
-        rxControl.enabled=true
-      end
-    end
-  end
+	-- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
+	if global.rxBuffer and #global.rxBuffer > 0 then
+		local frame = table.remove(global.rxBuffer)
+		for i,rxControl in pairs(global.rxControls) do
+			if rxControl.valid then
+				rxControl.parameters={parameters=frame}
+				rxControl.enabled=true
+			end
+		end
+	end
 end
 
 function ClearRXCombinators()
-  -- Clear all RX Combinators.
-  -- This makes them emit pulses, which are easier to
-  -- detect than slowly changing continusous signals.
-  for i,rxControl in pairs(global.rxControls) do
-    if rxControl.valid then
-      rxControl.enabled=false
-    end
-  end
+	-- Clear all RX Combinators.
+	-- This makes them emit pulses, which are easier to
+	-- detect than slowly changing continusous signals.
+	for i,rxControl in pairs(global.rxControls) do
+		if rxControl.valid then
+			rxControl.enabled=false
+		end
+	end
 end
 
 function UpdateInvCombinators()
-  -- Update all inventory Combinators
-  -- Prepare a frame from the last inventory report, plus any virtuals
-  local invframe = {}
-  if global.worldID then
-    table.insert(invframe,{count=global.worldID,index=#invframe+1,signal={name="signal-localid",type="virtual"}})
-  end
+	-- Update all inventory Combinators
+	-- Prepare a frame from the last inventory report, plus any virtuals
+	local invframe = {}
+	if global.worldID then
+		table.insert(invframe,{count=global.worldID,index=#invframe+1,signal={name="signal-localid",type="virtual"}})
+	end
 
-  local items = game.item_prototypes
-  local fluids = game.fluid_prototypes
-  local virtuals = game.virtual_signal_prototypes
-  if global.invdata then
-    for name,count in pairs(global.invdata) do
-      if virtuals[name] then
-        invframe[#invframe+1] = {count=count,index=#invframe+1,signal={name=name,type="virtual"}}
-      elseif fluids[name] then
-        invframe[#invframe+1] = {count=count,index=#invframe+1,signal={name=name,type="fluid"}}
-      elseif items[name] then
-        invframe[#invframe+1] = {count=count,index=#invframe+1,signal={name=name,type="item"}}
-      end
-    end
-  end
+	local items = game.item_prototypes
+	local fluids = game.fluid_prototypes
+	local virtuals = game.virtual_signal_prototypes
+	if global.invdata then
+		for name,count in pairs(global.invdata) do
+			if virtuals[name] then
+				invframe[#invframe+1] = {count=count,index=#invframe+1,signal={name=name,type="virtual"}}
+			elseif fluids[name] then
+				invframe[#invframe+1] = {count=count,index=#invframe+1,signal={name=name,type="fluid"}}
+			elseif items[name] then
+				invframe[#invframe+1] = {count=count,index=#invframe+1,signal={name=name,type="item"}}
+			end
+		end
+	end
 
-  for i,invControl in pairs(global.invControls) do
-    if invControl.valid then
-      invControl.parameters={parameters=invframe}
-      invControl.enabled=true
-    end
-  end
+	for i,invControl in pairs(global.invControls) do
+		if invControl.valid then
+			invControl.parameters={parameters=invframe}
+			invControl.enabled=true
+		end
+	end
 
 end
 
 --[[ Remote Thing ]]--
 remote.add_interface("clusterio",
 {
-  import = function(itemName, itemCount)
+	import = function(itemName, itemCount)
 		GiveItemsToStorage(itemName, itemCount)
 	end,
 	importMany = function(jsonString)
@@ -502,17 +532,17 @@ remote.add_interface("clusterio",
 		end
 		return buffer
 	end,
-  setFilePlayer = function(i)
-    global.write_file_player = i
-  end,
-  receiveInventory = function(jsoninvdata)
-    local invdata = json:decode(jsoninvdata)
+	setFilePlayer = function(i)
+		global.write_file_player = i
+	end,
+	receiveInventory = function(jsoninvdata)
+		local invdata = json:decode(jsoninvdata)
 		-- invdata = {["iron-plates"]=1234,["copper-plates"]=5678,...}
-    global.invdata = invdata
-    UpdateInvCombinators()
-  end,
-  setWorldID = function(newid)
-    global.worldID = newid
-    UpdateInvCombinators()
-  end
+		global.invdata = invdata
+		UpdateInvCombinators()
+	end,
+	setWorldID = function(newid)
+		global.worldID = newid
+		UpdateInvCombinators()
+	end
 })

@@ -26,7 +26,8 @@ INV_COMBINATOR_NAME = "inventory-combinator"
 OUTPUT_FILE = "output.txt"
 ORDER_FILE  = "orders.txt"
 TX_BUFFER_FILE = "txbuffer.txt"
+FLOWS_FILE = "flows.txt"
 
 
 UPDATE_RATE = 60
-CIRCUIT_UPDATE_RATE = 5
+CIRCUIT_UPDATE_RATE = 7
