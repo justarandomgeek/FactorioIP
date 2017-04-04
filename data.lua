@@ -248,7 +248,7 @@ data:extend{
 local inv = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
 inv.name = INV_COMBINATOR_NAME
 inv.minable.result = INV_COMBINATOR_NAME
-inv.item_slot_count = 100
+inv.item_slot_count = 500
 data:extend{
   inv,
   {
