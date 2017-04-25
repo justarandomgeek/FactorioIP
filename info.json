@@ -2,10 +2,10 @@
 {
 "name": "clusterio",
 "title": "Clusterio",
-"version": "1.1.1",
+"version": "1.2.0",
 "date": "31-12-2016",
 "author": "Danielv123 & Keyboardhack & justarandomgeek",
 "dependencies": ["base >= 0.13"],
-"factorio_version": "0.14",
+"factorio_version": "0.15",
 "description": "Allows transfer of items and signals between servers. *Server owners, see https://github.com/Danielv123/factorioClusterio for installation instructions*"
 }

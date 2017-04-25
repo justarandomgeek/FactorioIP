@@ -132,7 +132,7 @@ for k,v in pairs(data.raw.fluid) do
 			category = CRAFING_FLUID_CATEGORY_NAME,
 			--localised_name = {v.name},
 			energy_required = 1,
-			subgroup = "barrel",
+			subgroup = "fill-barrel",
 			order = "b[fill-crude-oil-barrel]",
 			enabled = true,
 			ingredients = {},
