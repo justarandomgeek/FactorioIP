@@ -111,24 +111,27 @@ script.on_event(defines.events.on_tick, function(event)
 	if global.previousPlayerCount == nil or global.previousPlayerCount ~= onlinePlayers then
 		Reset()
 	end
+	
 	global.previousPlayerCount = onlinePlayers
-
-	if todo == 0 then
-		HandleInputChests()
-	elseif todo == 1 then
-		HandleInputTanks()
-	elseif todo == 2 then
-		HandleOutputChests()
-	elseif todo == 3 then
-		HandleOutputTanks()
-	elseif todo == 4 then
-		ExportInputList()
-	elseif todo == 5 then
-		ExportOutputList()
-	elseif todo == 6 then
-		ExportFluidFlows()
-	elseif todo == 7 then
-		ExportItemFlows()
+	global.ticksSinceMasterPinged += 1
+	if global.ticksSinceMasterPinged < 300 then
+		if todo == 0 then
+			HandleInputChests()
+		elseif todo == 1 then
+			HandleInputTanks()
+		elseif todo == 2 then
+			HandleOutputChests()
+		elseif todo == 3 then
+			HandleOutputTanks()
+		elseif todo == 4 then
+			ExportInputList()
+		elseif todo == 5 then
+			ExportOutputList()
+		elseif todo == 6 then
+			ExportFluidFlows()
+		elseif todo == 7 then
+			ExportItemFlows()
+		end
 	end
 	
 	local rxstate = game.tick % CIRCUIT_UPDATE_RATE
@@ -177,6 +180,8 @@ function GetOnlinePlayerCount()
 end
 
 function Reset()
+	global.ticksSinceMasterPinged = 601
+
 	global.outputList = {}
 	global.inputList = {}
 	global.itemStorage = {}
@@ -536,6 +541,7 @@ remote.add_interface("clusterio",
 		global.write_file_player = i
 	end,
 	receiveInventory = function(jsoninvdata)
+		global.ticksSinceMasterPinged = 0
 		local invdata = json:decode(jsoninvdata)
 		-- invdata = {["iron-plates"]=1234,["copper-plates"]=5678,...}
 		global.invdata = invdata
