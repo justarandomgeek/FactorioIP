@@ -113,7 +113,7 @@ script.on_event(defines.events.on_tick, function(event)
 	end
 	
 	global.previousPlayerCount = onlinePlayers
-	global.ticksSinceMasterPinged += 1
+	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then
 		if todo == 0 then
 			HandleInputChests()
