@@ -1,12 +1,14 @@
 --the chest that a player put things in
 INPUT_CHEST_NAME = "put-chest"
-INPUT_CHEST_PICTURE_PATH = nil
-INPUT_CHEST_ICON_PATH = nil
+INPUT_CHEST_PICTURE_PATH = "__clusterio__/graphics/putChest.png"
+INPUT_CHEST_ICON_SIZE = 1024
+INPUT_CHEST_ICON_PATH = "__clusterio__/graphics/putChest.png"
 
 --the chest that the player get things from
 OUTPUT_CHEST_NAME = "get-chest"
 OUTPUT_CHEST_PICTURE_PATH = "__clusterio__/graphics/getChest.png"
-OUTPUT_CHEST_ICON_PATH = "__base__/graphics/icons/logistic-chest-requester.png"
+OUTPUT_CHEST_ICON_SIZE = 512
+OUTPUT_CHEST_ICON_PATH = "__clusterio__/graphics/getChest.png"
 
 --the tank that a player put things in
 INPUT_TANK_NAME = "put-tank"

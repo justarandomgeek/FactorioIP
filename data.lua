@@ -80,7 +80,9 @@ end
 
 --make chests
 -- MakeLogisticEntity(table.deepcopy(data.raw["logistic-container"]["logistic-chest-requester"]), OUTPUT_CHEST_NAME, OUTPUT_CHEST_PICTURE_PATH, { "picture" }, OUTPUT_CHEST_ICON_PATH)
-MakeLogisticEntity(table.deepcopy(data.raw["container"]["iron-chest"]), 							INPUT_CHEST_NAME,	INPUT_CHEST_PICTURE_PATH, { "picture" },	INPUT_CHEST_ICON_PATH)
+-- MakeLogisticEntity(table.deepcopy(data.raw["container"]["iron-chest"]), 							INPUT_CHEST_NAME,	INPUT_CHEST_PICTURE_PATH, { "picture" },	INPUT_CHEST_ICON_PATH)
+
+-- Use ugly prototype based approach instead
 data:extend({
 	{
 		type = "recipe",
@@ -102,6 +104,7 @@ data:extend({
 		type = "item",
 		name = OUTPUT_CHEST_NAME,
 		icon = OUTPUT_CHEST_ICON_PATH,
+		icon_size = OUTPUT_CHEST_ICON_SIZE,
 		flags = {"goes-to-quickbar"},
 		subgroup = "storage",
 		order = "a[items]-b["..OUTPUT_CHEST_NAME.."]",
@@ -112,6 +115,7 @@ data:extend({
 		type = "logistic-container",
 		name = OUTPUT_CHEST_NAME,
 		icon = OUTPUT_CHEST_ICON_PATH,
+		icon_size = 512,
 		flags = {"placeable-player", "player-creation"},
 		minable = {hardness = 0.2, mining_time = 2, result = OUTPUT_CHEST_NAME},
 		max_health = 2000,
@@ -141,7 +145,7 @@ data:extend({
 			priority = "extra-high",
 			width = 512,
 			height = 512,
-			shift = {0.09375, 0}
+			shift = {-0.25, 0.3}
 		},
 		circuit_wire_connection_point =
 		{
@@ -159,6 +163,85 @@ data:extend({
 		circuit_wire_max_distance = 9,
 		circuit_connector_sprites = get_circuit_connector_sprites({0.1875, 0.15625}, nil, 18),
 	},
+	{
+		type = "recipe",
+		name = INPUT_CHEST_NAME,
+		--if the recipe was succesfully attached to the tech then the recipe
+		--shouldn't be enabled to begin with.
+		--but if the recipe isn't attached to a tech then it should
+		--be enabled to begin with because otherwise the player can never use the item ingame
+		enabled = true,
+		ingredients =
+		{
+			{"steel-chest", 1},
+			{"electronic-circuit", 50}
+		},
+		result = INPUT_CHEST_NAME,
+		requester_paste_multiplier = 4
+	},
+	{
+		type = "item",
+		name = INPUT_CHEST_NAME,
+		icon = INPUT_CHEST_ICON_PATH,
+		icon_size = INPUT_CHEST_ICON_SIZE,
+		flags = {"goes-to-quickbar"},
+		subgroup = "storage",
+		order = "a[items]-b["..INPUT_CHEST_NAME.."]",
+		place_result = INPUT_CHEST_NAME,
+		stack_size = 50
+	},
+	{
+    type = "container",
+    name = INPUT_CHEST_NAME,
+    icon = INPUT_CHEST_ICON_PATH,
+	icon_size = INPUT_CHEST_ICON_SIZE,
+    flags = {"placeable-neutral", "player-creation"},
+    minable = {mining_time = 1, result = "iron-chest"},
+    max_health = 200,
+    corpse = "small-remnants",
+    open_sound = { filename = "__base__/sound/metallic-chest-open.ogg", volume=0.65 },
+    close_sound = { filename = "__base__/sound/metallic-chest-close.ogg", volume = 0.7 },
+    resistances =
+    {
+      {
+        type = "fire",
+        percent = 80
+      },
+      {
+        type = "impact",
+        percent = 30
+      }
+    },
+    collision_box = {{-4.35, -4.35}, {4.35, 4.35}},
+    selection_box = {{-4.5, -4.5}, {4.5, 4.5}},
+    fast_replaceable_group = "container",
+    inventory_size = 32,
+    vehicle_impact_sound =  { filename = "__base__/sound/car-metal-impact.ogg", volume = 0.65 },
+    picture =
+    {
+      filename = INPUT_CHEST_PICTURE_PATH,
+      priority = "extra-high",
+      width = 1024,
+      height = 1024,
+      shift = {1.5, -1.5},
+	  scale = .4
+    },
+    circuit_wire_connection_point =
+    {
+      shadow =
+      {
+        red = {0.734375, 0.453125},
+        green = {0.609375, 0.515625},
+      },
+      wire =
+      {
+        red = {0.40625, 0.21875},
+        green = {0.40625, 0.375},
+      }
+    },
+    circuit_connector_sprites = get_circuit_connector_sprites({0.1875, 0.15625}, nil, 18),
+    circuit_wire_max_distance = 9
+  },
 })
 --make tanks
 MakeLogisticEntity(table.deepcopy(data.raw["storage-tank"]["storage-tank"]),	INPUT_TANK_NAME,	INPUT_TANK_PICTURE_PATH, { "pictures", "picture", "sheet" },	INPUT_TANK_ICON_PATH)
