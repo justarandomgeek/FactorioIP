@@ -196,7 +196,7 @@ data:extend({
     icon = INPUT_CHEST_ICON_PATH,
 	icon_size = INPUT_CHEST_ICON_SIZE,
     flags = {"placeable-neutral", "player-creation"},
-    minable = {mining_time = 1, result = "iron-chest"},
+    minable = {mining_time = 1, result = INPUT_CHEST_NAME},
     max_health = 200,
     corpse = "small-remnants",
     open_sound = { filename = "__base__/sound/metallic-chest-open.ogg", volume=0.65 },
