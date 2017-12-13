@@ -47,6 +47,7 @@ function MakeLogisticEntity(entity, name, pictureFilename, pictureTablePath, ico
 			type = "item",
 			name = name,
 			icon = entity.icon,
+			icon_size = 32,
 			flags = {"goes-to-quickbar"},
 			subgroup = "storage",
 			order = "a[items]-b["..name.."]",
@@ -83,14 +84,11 @@ end
 -- MakeLogisticEntity(table.deepcopy(data.raw["container"]["iron-chest"]), 							INPUT_CHEST_NAME,	INPUT_CHEST_PICTURE_PATH, { "picture" },	INPUT_CHEST_ICON_PATH)
 
 -- Use ugly prototype based approach instead
+
 data:extend({
 	{
 		type = "recipe",
 		name = OUTPUT_CHEST_NAME,
-		--if the recipe was succesfully attached to the tech then the recipe
-		--shouldn't be enabled to begin with.
-		--but if the recipe isn't attached to a tech then it should
-		--be enabled to begin with because otherwise the player can never use the item ingame
 		enabled = true,
 		ingredients =
 		{
@@ -112,64 +110,8 @@ data:extend({
 		stack_size = 50
 	},
 	{
-		type = "logistic-container",
-		name = OUTPUT_CHEST_NAME,
-		icon = OUTPUT_CHEST_ICON_PATH,
-		icon_size = 512,
-		flags = {"placeable-player", "player-creation"},
-		minable = {hardness = 0.2, mining_time = 2, result = OUTPUT_CHEST_NAME},
-		max_health = 2000,
-		corpse = "small-remnants",
-		collision_box = {{-7.35, -1.35}, {1.35, 7.35}},
-		selection_box = {{-7.5, -1.5}, {1.5, 7.5}},
-		resistances =
-		{
-			{
-				type = "fire",
-				percent = 90
-			},
-			{
-				type = "impact",
-				percent = 60
-			}
-		},
-		fast_replaceable_group = "container",
-		inventory_size = 48,
-		logistic_mode = "requester",
-		open_sound = { filename = "__base__/sound/metallic-chest-open.ogg", volume=0.65 },
-		close_sound = { filename = "__base__/sound/metallic-chest-close.ogg", volume = 0.7 },
-		vehicle_impact_sound =	{ filename = "__base__/sound/car-metal-impact.ogg", volume = 0.65 },
-		picture =
-		{
-			filename = OUTPUT_CHEST_PICTURE_PATH,
-			priority = "extra-high",
-			width = 512,
-			height = 512,
-			shift = {-0.25, 0.3}
-		},
-		circuit_wire_connection_point =
-		{
-			shadow =
-			{
-				red = {0.734375, 0.453125},
-				green = {0.609375, 0.515625},
-			},
-			wire =
-			{
-				red = {0.40625, 0.21875},
-				green = {0.40625, 0.375},
-			}
-		},
-		circuit_wire_max_distance = 9,
-		circuit_connector_sprites = get_circuit_connector_sprites({0.1875, 0.15625}, nil, 18),
-	},
-	{
 		type = "recipe",
 		name = INPUT_CHEST_NAME,
-		--if the recipe was succesfully attached to the tech then the recipe
-		--shouldn't be enabled to begin with.
-		--but if the recipe isn't attached to a tech then it should
-		--be enabled to begin with because otherwise the player can never use the item ingame
 		enabled = true,
 		ingredients =
 		{
@@ -190,58 +132,44 @@ data:extend({
 		place_result = INPUT_CHEST_NAME,
 		stack_size = 50
 	},
-	{
-    type = "container",
-    name = INPUT_CHEST_NAME,
-    icon = INPUT_CHEST_ICON_PATH,
-	icon_size = INPUT_CHEST_ICON_SIZE,
-    flags = {"placeable-neutral", "player-creation"},
-    minable = {mining_time = 1, result = INPUT_CHEST_NAME},
-    max_health = 200,
-    corpse = "small-remnants",
-    open_sound = { filename = "__base__/sound/metallic-chest-open.ogg", volume=0.65 },
-    close_sound = { filename = "__base__/sound/metallic-chest-close.ogg", volume = 0.7 },
-    resistances =
-    {
-      {
-        type = "fire",
-        percent = 80
-      },
-      {
-        type = "impact",
-        percent = 30
-      }
-    },
-    collision_box = {{-4.35, -4.35}, {4.35, 4.35}},
-    selection_box = {{-4.5, -4.5}, {4.5, 4.5}},
-    fast_replaceable_group = "container",
-    inventory_size = 32,
-    vehicle_impact_sound =  { filename = "__base__/sound/car-metal-impact.ogg", volume = 0.65 },
-    picture =
-    {
-      filename = INPUT_CHEST_PICTURE_PATH,
-      priority = "extra-high",
-      width = 1024,
-      height = 1024,
-      shift = {1.5, -1.5},
-	  scale = .4
-    },
-    circuit_wire_connection_point =
-    {
-      shadow =
-      {
-        red = {0.734375, 0.453125},
-        green = {0.609375, 0.515625},
-      },
-      wire =
-      {
-        red = {0.40625, 0.21875},
-        green = {0.40625, 0.375},
-      }
-    },
-    circuit_connector_sprites = get_circuit_connector_sprites({0.1875, 0.15625}, nil, 18),
-    circuit_wire_max_distance = 9
-  },
+})
+putChest = table.deepcopy(data.raw["logistic-container"]["logistic-chest-active-provider"])
+putChest.picture = {
+	filename = INPUT_CHEST_PICTURE_PATH,
+	priority = "extra-high",
+	width = 1024,
+	height = 1024,
+	shift = {1.5, -1.5},
+	scale = .4
+}
+putChest.collision_box = {{-4.35, -4.35}, {4.35, 4.35}}
+putChest.selection_box = {{-4.5, -4.5}, {4.5, 4.5}}
+putChest.max_health = 500
+putChest.minable = {hardness = 0.2, mining_time = 2, result = INPUT_CHEST_NAME}
+putChest.icon_size = 512
+putChest.icon = INPUT_CHEST_ICON_PATH
+putChest.name = INPUT_CHEST_NAME
+
+
+getChest = table.deepcopy(data.raw["logistic-container"]["logistic-chest-requester"])
+getChest.picture = {
+	filename = OUTPUT_CHEST_PICTURE_PATH,
+	priority = "extra-high",
+	width = 512,
+	height = 512,
+	shift = {-0.25, 0.3},
+}
+getChest.collision_box = {{-7.35, -1.35}, {1.35, 7.35}}
+getChest.selection_box = {{-7.5, -1.5}, {1.5, 7.5}}
+getChest.max_health = 500
+getChest.minable = {mining_time = 1, result = OUTPUT_CHEST_NAME}
+getChest.name = OUTPUT_CHEST_NAME
+getChest.icon = OUTPUT_CHEST_ICON_PATH
+getChest.icon_size = OUTPUT_CHEST_ICON_SIZE
+
+data:extend({
+	getChest,
+	putChest,
 })
 --make tanks
 MakeLogisticEntity(table.deepcopy(data.raw["storage-tank"]["storage-tank"]),	INPUT_TANK_NAME,	INPUT_TANK_PICTURE_PATH, { "pictures", "picture", "sheet" },	INPUT_TANK_ICON_PATH)
@@ -290,6 +218,7 @@ for k,v in pairs(data.raw.fluid) do
 			type = "recipe",
 			name = ("get-"..v.name),
 			icon = v.icon,
+			icon_size = 32,
 			category = CRAFING_FLUID_CATEGORY_NAME,
 			--localised_name = {v.name},
 			energy_required = 1,
@@ -318,6 +247,7 @@ data:extend{
 		type = "virtual-signal",
 		name = "signal-srctick",
 		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[1srctick]"
 	},
@@ -325,6 +255,7 @@ data:extend{
 		type = "virtual-signal",
 		name = "signal-srcid",
 		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[2srcid]"
 	},
@@ -332,6 +263,7 @@ data:extend{
 		type = "virtual-signal",
 		name = "signal-localid",
 		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[3localid]"
 	},
@@ -339,6 +271,7 @@ data:extend{
 		type = "virtual-signal",
 		name = "signal-unixtime",
 		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[4unixtime]"
 	},
@@ -354,6 +287,7 @@ data:extend{
 		type = "item",
 		name = TX_COMBINATOR_NAME,
 		icon = tx.icon,
+		icon_size = 32,
 		flags = {"goes-to-quickbar"},
 		subgroup = "storage",
 		place_result=TX_COMBINATOR_NAME,
@@ -385,6 +319,7 @@ data:extend{
 		type = "item",
 		name = RX_COMBINATOR_NAME,
 		icon = rx.icon,
+		icon_size = 32,
 		flags = {"goes-to-quickbar"},
 		subgroup = "storage",
 		place_result=RX_COMBINATOR_NAME,
@@ -416,6 +351,7 @@ data:extend{
 		type = "item",
 		name = INV_COMBINATOR_NAME,
 		icon = inv.icon,
+		icon_size = 32,
 		flags = {"goes-to-quickbar"},
 		subgroup = "storage",
 		place_result=INV_COMBINATOR_NAME,

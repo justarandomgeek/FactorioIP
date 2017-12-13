@@ -85,7 +85,7 @@ end)
 script.on_event(defines.events.on_robot_pre_mined, function(event)
 	OnKilledEntity(event)
 end)
-script.on_event(defines.events.on_preplayer_mined_item, function(event)
+script.on_event(defines.events.on_pre_player_mined_item, function(event)
 	OnKilledEntity(event)
 end)
 
