@@ -2,7 +2,7 @@
 {
 "name": "clusterio",
 "title": "Clusterio",
-"version": "1.5.0",
+"version": "1.5.1",
 "date": "31-12-2016",
 "author": "Danielv123 & Keyboardhack & justarandomgeek",
 "dependencies": ["base >= 0.13"],
