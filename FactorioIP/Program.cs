@@ -8,14 +8,15 @@ using System.Net.Sockets;
 using System.Web.Script.Serialization;
 using System.Net.Http;
 using System.IO;
-using System.Net.WebSockets;
 using System.Collections.Specialized;
+using System.Net.WebSockets;
+using System.Threading;
 
 namespace FactorioIP
 {
     class Program
     {
-        
+        public static int uniqueID = new Random().Next();
         public static void Main(string[] args)
         {
             // set up a socket for GRE=47, listen on any address...
@@ -26,16 +27,40 @@ namespace FactorioIP
             // buffer to put packets in...
             byte[] rcvbuf = new byte[1500];
             var sendbuf = new Queue<byte[]>();
+            IAsyncResult ongoingsend = null;
+
+            var clusterio = new SocketIOClient();
+            clusterio.On("hello", t =>
+            {
+                Console.WriteLine("Clusterio Connected");
+                clusterio.Emit("registerSlave", new { instanceID = uniqueID });
+                clusterio.Emit("heartbeat");
+            });
+            clusterio.On("processCombinatorSignal", t =>
+            {
+                Console.WriteLine(t);
+
+                //var circpacker = ;
+                
+                //sendbuf.Enqueue(circuit_to_packet(t)));
+            });
+
+            clusterio.Connect(new Uri("ws://10.42.2.182:8080/socket.io/?EIO=3&transport=websocket"));
             
-            var clusterio = new WebClient();
-            clusterio.Encoding = Encoding.UTF8;
-            var baseuri = new UriBuilder("http", "localhost", 8080).Uri;
-            
-            var lastcheck = DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds();
+
+            long nexthb = 0;
 
             while (true)
             {
+                var now = DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds();
                 // check for inbound packets to foward to clusterio
+
+                if (now >= nexthb)
+                {
+                    clusterio.Emit("heartbeat");
+                    nexthb = now + 10000;
+                }
+
                 if (gresock.Poll(0, SelectMode.SelectRead))
                 {
                     gresock.Receive(rcvbuf);
@@ -56,12 +81,8 @@ namespace FactorioIP
                                     Console.WriteLine($"Type: {v6inHeader.nextHeader} Payload: {v6inHeader.payloadLen} From: {v6inHeader.source} To: {v6inHeader.dest}");
                                     if (v6inHeader.payloadLen + 40 <= signals.Count * 4)
                                     {
-                                        var jsonpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen);
-
-                                        //Console.WriteLine(jsonpacket);
-                                        //clusterio.Headers.Add(HttpRequestHeader.ContentType, "application/json");
-                                        //var result = clusterio.UploadString(new Uri(baseuri, "/api/setSignal"), "POST", jsonpacket);
-                                        var result = clusterio.UploadValues(new Uri(baseuri, "/api/setSignal"), "POST", jsonpacket);
+                                        var circpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen);
+                                        clusterio.Emit("combinatorSignal", circpacket);
                                     }
 
 
@@ -81,31 +102,19 @@ namespace FactorioIP
                     }
                     
                 }
-
-                if (lastcheck + 500 < DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds())
-                {
-                    //check for new clusterio packets and send them out...
-                    Console.WriteLine($"Getting packets since {lastcheck}...");
-                    clusterio.Headers.Add(HttpRequestHeader.ContentType, "application/x-www-form-urlencoded");
-                    var t = clusterio.UploadString(new Uri(baseuri, "/api/readSignal"), "POST", $"since={lastcheck}");
-                    Console.WriteLine(t);
-                    lastcheck = DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds();
-                    foreach (var packet in circuit_to_packet(t))
-                        sendbuf.Enqueue(packet);
-                    
-                    
-                    
-                }
-
-                if (sendbuf.Count > 0 & gresock.Poll(0, SelectMode.SelectWrite))
+                
+                if ((ongoingsend?.IsCompleted!=false) && sendbuf.Count > 0)
                 {
                     GREHeader outhead = new GREHeader { flags_ver = 0, protocol = 0x86dd };
                     var payload = sendbuf.Dequeue();
+                    var v6outHeader = IPv6Header.FromBytes(payload, 0);
+                    Console.WriteLine($"Type: {v6outHeader.nextHeader} Payload: {v6outHeader.payloadLen} From: {v6outHeader.source} To: {v6outHeader.dest}");
+
                     var packet = new List<ArraySegment<byte>>{
                         new ArraySegment<byte>(outhead.ToBytes()),
                         new ArraySegment<byte>(payload)
                     };
-                    gresock.Send(packet);
+                    ongoingsend = gresock.BeginSend(packet,SocketFlags.None,null,null);
                 }
 
 
@@ -116,7 +125,7 @@ namespace FactorioIP
 
         struct CircuitFramePacket
         {
-            public UInt64 time;
+            public Int64 time;
             public List<CircuitFrameValue> frame;
             public string origin;
         }
@@ -195,20 +204,16 @@ namespace FactorioIP
             return packets;
         }
 
-
-        static NameValueCollection packet_to_circuit(byte[] buffer, int startAt, int size)
+        
+        static CircuitFramePacket packet_to_circuit(byte[] buffer, int startAt, int size)
         {
-            //var json = new JavaScriptSerializer();
-            //var frame = new List<dynamic>();
-            //
-            //dynamic packet = new {
-            //    time = DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds(),
-            //    frame = frame
-            //};
-
-            var nvpPacket = new NameValueCollection();
-            nvpPacket["time"] = DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds().ToString();
-            nvpPacket["origin"] = "FactorioIP"; // clusterio ignores this, but preserves it for me. It makes it easy to skip my own reflection
+            var frame = new List<CircuitFrameValue>();
+            var packet = new CircuitFramePacket
+            {
+                time = DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds(),
+                frame = frame,
+                origin = "FactorioIP" // clusterio ignores this, but preserves it for me. It makes it easy to skip my own reflection
+            };
 
             int i,j;
             for (i = startAt, j=0; i < startAt+size; i+=4, j++)
@@ -219,23 +224,20 @@ namespace FactorioIP
                 {
                     nextword = (Int32)(nextword & (0xffffffff << ((4 - ((startAt + size) - i)) * 8)));
                 }
-
-                nvpPacket[$"frame[{j}][type]"] = j < 42 ? "virtual" : j < 50 ? "fluid" : "item";
-                nvpPacket[$"frame[{j}][name]"] = signals[j];
-                nvpPacket[$"frame[{j}][count]"] = nextword.ToString();
                 
-
-                //frame.Add(new {
-                //    type = j < 42 ? "virtual" : j < 50 ? "fluid" : "item",
-                //    name = signals[j],
-                //    count = nextword,
-                //});
+                frame.Add(new CircuitFrameValue
+                {
+                    type = j < 42 ? "virtual" : j < 50 ? "fluid" : "item",
+                    name = signals[j],
+                    count = nextword,
+                });
             }
             //TODO: add feathernet header? or leave that to hardware?
-            //return json.Serialize(packet);
-            return nvpPacket;
+            return packet;
         }
 
+
+        // all vanilla signals except grey/white/black, used by feathernet header, and NIC internals
         static List<string> signals = new List<string>{
             "signal-0",
             "signal-1",
