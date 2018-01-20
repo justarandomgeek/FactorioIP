@@ -111,7 +111,7 @@ script.on_event(defines.events.on_tick, function(event)
 	if global.previousPlayerCount == nil or global.previousPlayerCount ~= onlinePlayers then
 		Reset()
 	end
-	
+
 	global.previousPlayerCount = onlinePlayers
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then
@@ -133,39 +133,34 @@ script.on_event(defines.events.on_tick, function(event)
 			ExportItemFlows()
 		end
 	end
-	
-	local rxstate = game.tick % CIRCUIT_UPDATE_RATE
+
 	-- RX Combinators are set and then cleared on sequential ticks to create pulses
-	if rxstate == 0 then
-		SetRXCombinators()
-	elseif rxstate == 1 then
-		ClearRXCombinators()
-	end
+	UpdateRXCombinators()
 end)
-	
+
 function ExportItemFlows()
 	local flowreport = {type="item",flows={}}
- 
+
 	for _,force in pairs(game.forces) do
 		flowreport.flows[force.name] = {
 			input_counts = force.item_production_statistics.input_counts,
 			output_counts = force.item_production_statistics.output_counts,
 		}
 	end
- 
+
 	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
 end
 
 function ExportFluidFlows()
 	local flowreport = {type="fluid",flows={}}
-	
+
 	for _,force in pairs(game.forces) do
 		flowreport.flows[force.name] = {
 			input_counts = force.fluid_production_statistics.input_counts,
 			output_counts = force.fluid_production_statistics.output_counts,
 		}
 	end
- 
+
 	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
 end
 
@@ -445,7 +440,7 @@ function HandleTXCombinators()
 	end
 end
 
-function SetRXCombinators()
+function UpdateRXCombinators()
 	-- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
 	if global.rxBuffer and #global.rxBuffer > 0 then
 		local frame = table.remove(global.rxBuffer)
@@ -455,17 +450,13 @@ function SetRXCombinators()
 				rxControl.enabled=true
 			end
 		end
-	end
-end
-
-function ClearRXCombinators()
-	-- Clear all RX Combinators.
-	-- This makes them emit pulses, which are easier to
-	-- detect than slowly changing continusous signals.
-	for i,rxControl in pairs(global.rxControls) do
-		if rxControl.valid then
-			rxControl.enabled=false
-		end
+  else
+    -- no frames to send right now, blank all...
+    for i,rxControl in pairs(global.rxControls) do
+  		if rxControl.valid then
+  			rxControl.enabled=false
+  		end
+  	end
 	end
 end
 
