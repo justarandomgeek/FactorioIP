@@ -39,10 +39,8 @@ namespace FactorioIP
             clusterio.On("processCombinatorSignal", t =>
             {
                 Console.WriteLine(t);
-
-                //var circpacker = ;
-                
-                //sendbuf.Enqueue(circuit_to_packet(t)));
+                var packet = circuit_to_packet(t);
+                if (packet != null) sendbuf.Enqueue(packet);
             });
 
             clusterio.Connect(new Uri("ws://10.42.2.182:8080/socket.io/?EIO=3&transport=websocket"));
@@ -136,72 +134,62 @@ namespace FactorioIP
             public Int32 count;
         }
 
-        static Queue<byte[]> circuit_to_packet(string jsonlist)
+        static byte[] circuit_to_packet(dynamic circpacket)
         {
-            var packets = new Queue<byte[]>();
-            if (jsonlist != "[]")
+            var json = new JavaScriptSerializer();
+            var frame = json.Deserialize<CircuitFramePacket>((string)json.Serialize(circpacket));
+            byte[] framepacket = null;
+
+            // don't process my own reflection
+            if (frame.origin == "FactorioIP") return framepacket;
+
+            var sigdict = frame.frame.ToDictionary(fkey => fkey.name, fval => fval.count);
+
+            //check for a Feathernet header tagged for IP traffic
+            if (sigdict.ContainsKey("signal-black") && sigdict["signal-black"]==1 &&
+                sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 1)
             {
-                var json = new JavaScriptSerializer();
-                var frames = json.Deserialize<List<CircuitFramePacket>>(jsonlist);
-
-                foreach (var frame in frames)
+                var size = signals.Count*4;
+                switch (sigdict["signal-0"] >> 28)
                 {
-                    // don't process my own reflection
-                    if (frame.origin == "FactorioIP") continue;
+                    case 6:
+                        size = ((UInt16)(sigdict["signal-1"]>>16)) + 40;
+                        break;
+                    case 4:
+                        size = ((UInt16)(sigdict["signal-0"]));
+                        break;
+                    default:
+                        break;
+                }
 
-                    var sigdict = frame.frame.ToDictionary(fkey => fkey.name, fval => fval.count);
 
-                    //check for a Feathernet header tagged for IP traffic
-                    if (sigdict.ContainsKey("signal-black") && sigdict["signal-black"]==1 &&
-                        sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 1)
+                framepacket = new byte[size];
+                for (int i = 0; i < size; i += 4)
+                {
+                    if (sigdict.ContainsKey(signals[i / 4]))
                     {
-                        var size = signals.Count*4;
-                        switch (sigdict["signal-0"] >> 28)
+
+                        switch (size - i)
                         {
-                            case 6:
-                                size = ((UInt16)(sigdict["signal-1"]>>16)) + 40;
-                                break;
-                            case 4:
-                                size = ((UInt16)(sigdict["signal-0"]));
-                                break;
                             default:
+                                framepacket[i + 3] = (byte)(sigdict[signals[i / 4]] >> 0);
+                                goto case 3; // continue doens't work in a for loop...
+                            case 3:
+                                framepacket[i + 2] = (byte)(sigdict[signals[i / 4]] >> 8);
+                                goto case 2;
+                            case 2:
+                                framepacket[i + 1] = (byte)(sigdict[signals[i / 4]] >> 16);
+                                goto case 1;
+                            case 1:
+                                framepacket[i + 0] = (byte)(sigdict[signals[i / 4]] >> 24);
                                 break;
                         }
-
-
-                        byte[] framepacket = new byte[size];
-                        for (int i = 0; i < size; i += 4)
-                        {
-                            if (sigdict.ContainsKey(signals[i / 4]))
-                            {
-
-                                switch (size - i)
-                                {
-                                    default:
-                                        framepacket[i + 3] = (byte)(sigdict[signals[i / 4]] >> 0);
-                                        goto case 3; // continue doens't work in a for loop...
-                                    case 3:
-                                        framepacket[i + 2] = (byte)(sigdict[signals[i / 4]] >> 8);
-                                        goto case 2;
-                                    case 2:
-                                        framepacket[i + 1] = (byte)(sigdict[signals[i / 4]] >> 16);
-                                        goto case 1;
-                                    case 1:
-                                        framepacket[i + 0] = (byte)(sigdict[signals[i / 4]] >> 24);
-                                        break;
-                                }
-                            }
-                        }
-
-                        packets.Enqueue(framepacket);
-
                     }
-
-                    
                 }
             }
+                
 
-            return packets;
+            return framepacket;
         }
 
         
