@@ -32,4 +32,3 @@ FLOWS_FILE = "flows.txt"
 
 
 UPDATE_RATE = 60
-CIRCUIT_UPDATE_RATE = 7
