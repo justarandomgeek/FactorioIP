@@ -18,16 +18,16 @@ namespace FactorioIP
 
         CancellationToken rcvTok = new CancellationToken();
         CancellationToken sndTok = new CancellationToken();
-        byte[] wsrcvbuf = new byte[10000];
+        byte[] wsrcvbuf = new byte[1000000];
 
         JavaScriptSerializer json = new JavaScriptSerializer();
 
         Dictionary<string, Action<dynamic>> eventHandlers = new Dictionary<string, Action<dynamic>>();
 
-        public void Connect(Uri uri)
+        public void Connect(string hostname, UInt16 port, bool secure = false)
         {
             wsock = new ClientWebSocket();            
-            wsock.ConnectAsync(uri, rcvTok).Wait();
+            wsock.ConnectAsync(new Uri($"{(secure?"wss":"ws")}://{hostname}:{port}/socket.io/?EIO=3&transport=websocket"), rcvTok).Wait();
             wsock.ReceiveAsync(new ArraySegment<byte>(wsrcvbuf), rcvTok).ContinueWith(CompleteReceive);
             
         }
@@ -43,7 +43,7 @@ namespace FactorioIP
             var eventdata = data == null ? new object[] { eventName } : new object[] { eventName, data };
             var eventstring = "42" + json.Serialize(eventdata);
 
-            Console.WriteLine(eventstring);
+            Console.WriteLine("socket.io emit " + eventName);
             wsock.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(eventstring)), WebSocketMessageType.Text, true, sndTok).Wait();
         }
 

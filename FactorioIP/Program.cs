@@ -38,12 +38,11 @@ namespace FactorioIP
             });
             clusterio.On("processCombinatorSignal", t =>
             {
-                Console.WriteLine(t);
                 var packet = circuit_to_packet(t);
                 if (packet != null) sendbuf.Enqueue(packet);
             });
 
-            clusterio.Connect(new Uri("ws://10.42.2.182:8080/socket.io/?EIO=3&transport=websocket"));
+            clusterio.Connect("localhost", 8080);
             
 
             long nexthb = 0;
@@ -81,6 +80,13 @@ namespace FactorioIP
                                     {
                                         var circpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen);
                                         clusterio.Emit("combinatorSignal", circpacket);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Too large");
+                                        
+
+                                        
                                     }
 
 
@@ -146,8 +152,7 @@ namespace FactorioIP
             var sigdict = frame.frame.ToDictionary(fkey => fkey.name, fval => fval.count);
 
             //check for a Feathernet header tagged for IP traffic
-            if (sigdict.ContainsKey("signal-black") && sigdict["signal-black"]==1 &&
-                sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 1)
+            if (sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 1)
             {
                 var size = signals.Count*4;
                 switch (sigdict["signal-0"] >> 28)
@@ -187,7 +192,23 @@ namespace FactorioIP
                     }
                 }
             }
-                
+            else if (sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 2)
+            {
+                switch (sigdict["signal-0"])
+                {
+                    case 1:
+                        Console.WriteLine($"FCP Sol {sigdict["signal-1"]:x8}");
+                        break;
+                    case 2:
+                        Console.WriteLine($"FCP Adv {sigdict["signal-1"]:x8}");
+                        break;
+                    default:
+                        Console.WriteLine("Unknown FCP Message");
+                        break;
+                }
+
+            }
+
 
             return framepacket;
         }
@@ -220,7 +241,16 @@ namespace FactorioIP
                     count = nextword,
                 });
             }
-            //TODO: add feathernet header? or leave that to hardware?
+
+            // add a world-id to be consistent with other clusterio traffic
+            frame.Add(new CircuitFrameValue { type = "virtual", name = "signal-srcid", count = 1, });
+
+            //add a feathernet header tagging this as IP traffic
+            frame.Add(new CircuitFrameValue { type = "virtual", name = "signal-white", count = 1, });
+
+            var head = IPv6Header.FromBytes(buffer, startAt);
+            Int32 destaddr = head.dest.IsIPv6Multicast ? 0 : ((buffer[startAt+36] << 24) | (buffer[startAt + 37] << 16) | (buffer[startAt + 38] << 8) | (buffer[startAt + 39]));
+            frame.Add(new CircuitFrameValue { type = "virtual", name = "signal-grey", count = destaddr, });
             return packet;
         }
 
@@ -313,14 +343,16 @@ namespace FactorioIP
             "locomotive",
             "cargo-wagon",
             "fluid-wagon",
+            "artillery-wagon",
             "car",
             "tank",
             "logistic-robot",
             "construction-robot",
             "logistic-chest-active-provider",
             "logistic-chest-passive-provider",
-            "logistic-chest-requester",
             "logistic-chest-storage",
+            "logistic-chest-buffer",
+            "logistic-chest-requester",
             "roboport",
             "small-lamp",
             "red-wire",
@@ -334,6 +366,7 @@ namespace FactorioIP
             "concrete",
             "hazard-concrete",
             "landfill",
+            "cliff-explosives",
             "iron-axe",
             "steel-axe",
             "repair-pack",
@@ -384,8 +417,10 @@ namespace FactorioIP
             "copper-plate",
             "solid-fuel",
             "steel-plate",
-            "sulfur",
             "plastic-bar",
+            "sulfur",
+            "battery",
+            "explosives",
             "crude-oil-barrel",
             "heavy-oil-barrel",
             "light-oil-barrel",
@@ -402,13 +437,12 @@ namespace FactorioIP
             "processing-unit",
             "engine-unit",
             "electric-engine-unit",
-            "battery",
-            "explosives",
             "flying-robot-frame",
+            "satellite",
+            "rocket-control-unit",
             "low-density-structure",
             "rocket-fuel",
-            "rocket-control-unit",
-            "satellite",
+            "nuclear-fuel",
             "uranium-235",
             "uranium-238",
             "uranium-fuel-cell",
@@ -436,6 +470,7 @@ namespace FactorioIP
             "explosive-cannon-shell",
             "uranium-cannon-shell",
             "explosive-uranium-cannon-shell",
+            "artillery-shell",
             "rocket",
             "explosive-rocket",
             "atomic-bomb",
@@ -448,13 +483,12 @@ namespace FactorioIP
             "distractor-capsule",
             "destroyer-capsule",
             "discharge-defense-remote",
+            "artillery-targeting-remote",
             "light-armor",
             "heavy-armor",
             "modular-armor",
             "power-armor",
             "power-armor-mk2",
-            "power-armor-mk3",
-            "power-armor-mk4",
             "solar-panel-equipment",
             "fusion-reactor-equipment",
             "energy-shield-equipment",
