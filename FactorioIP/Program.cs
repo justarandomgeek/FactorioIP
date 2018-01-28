@@ -161,7 +161,7 @@ namespace FactorioIP
                         size = ((UInt16)(sigdict["signal-1"]>>16)) + 40;
                         break;
                     case 4:
-                        size = ((UInt16)(sigdict["signal-0"]));
+                        size = ((UInt16)(sigdict["signal-0"] & 0xffff));
                         break;
                     default:
                         break;
