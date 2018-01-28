@@ -1,0 +1,11 @@
+{
+  "name": "IPSignals",
+  "version": "0.16.0",
+  "factorio_version": "0.16",
+  "title": "Extra Signals for IP Packets",
+  "author": "justarandomgeek",
+  "homepage": "",
+  "contact": "justarandomgeek@gmail.com",
+  "description": "Extra signals to reach 1280 byte MTU required by IPv6",
+  "dependencies": ["base >= 0.16.0"]
+}
