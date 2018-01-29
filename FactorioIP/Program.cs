@@ -84,9 +84,6 @@ namespace FactorioIP
                                     else
                                     {
                                         Console.WriteLine("Too large");
-                                        
-
-                                        
                                     }
 
 
@@ -233,10 +230,10 @@ namespace FactorioIP
                 {
                     nextword = (Int32)(nextword & (0xffffffff << ((4 - ((startAt + size) - i)) * 8)));
                 }
-                
+
                 frame.Add(new CircuitFrameValue
                 {
-                    type = j < 42 ? "virtual" : j < 50 ? "fluid" : "item",
+                    type = (j < 42 || j > 248) ? "virtual" : j < 50 ? "fluid" : "item",
                     name = signals[j],
                     count = nextword,
                 });
@@ -508,6 +505,85 @@ namespace FactorioIP
             "flamethrower-turret",
             "radar",
             "rocket-silo",
+
+            "signal-249",
+
+            "signal-250",
+            "signal-251",
+            "signal-252",
+            "signal-253",
+            "signal-254",
+            "signal-255",
+            "signal-256",
+            "signal-257",
+            "signal-258",
+            "signal-259",
+
+            "signal-260",
+            "signal-261",
+            "signal-262",
+            "signal-263",
+            "signal-264",
+            "signal-265",
+            "signal-266",
+            "signal-267",
+            "signal-268",
+            "signal-269",
+
+            "signal-270",
+            "signal-271",
+            "signal-272",
+            "signal-273",
+            "signal-274",
+            "signal-275",
+            "signal-276",
+            "signal-277",
+            "signal-278",
+            "signal-279",
+
+            "signal-280",
+            "signal-281",
+            "signal-282",
+            "signal-283",
+            "signal-284",
+            "signal-285",
+            "signal-286",
+            "signal-287",
+            "signal-288",
+            "signal-289",
+
+            "signal-290",
+            "signal-291",
+            "signal-292",
+            "signal-293",
+            "signal-294",
+            "signal-295",
+            "signal-296",
+            "signal-297",
+            "signal-298",
+            "signal-299",
+
+            "signal-300",
+            "signal-301",
+            "signal-302",
+            "signal-303",
+            "signal-304",
+            "signal-305",
+            "signal-306",
+            "signal-307",
+            "signal-308",
+            "signal-309",
+
+            "signal-310",
+            "signal-311",
+            "signal-312",
+            "signal-313",
+            "signal-314",
+            "signal-315",
+            "signal-316",
+            "signal-317",
+            "signal-318",
+            "signal-319",
         }; 
     }
 }

@@ -20,14 +20,16 @@ To allow higher layer protocols to support varied packet structures (reasonably 
 
 | Protocol Type | Protocol               |
 |---------------|------------------------|
-| 0x000000      | raw signals            |
-| 0x000001      | IPv6 on vanilla signals|
-| 0x000002      | Feathernet Control     |
+|             0 | raw signals            |
+|             1 | IPv6 on vanilla signals|
+|             2 | Feathernet Control     |
 
 
 
 
-Feathernet Control
+## Feathernet Control
+
+Feathernet Control Protocol provides link-layer configuration services, including 
 
 |  Signal      | Fields                    |
 |--------------|---------------------------|
@@ -47,7 +49,7 @@ When any node receives a Neighbor Solicit for it's own address, it MUST respond 
 
 
 
-IPv6 
+## IPv6 
 
 |  vanilla | custom            | Header Fields                  | Notes            |
 |----------|-------------------|--------------------------------|------------------|
@@ -64,14 +66,14 @@ IPv6
 
 Nodes MUST configure an address in fe80::/64. Nodes MAY also configure addresses under prefixes advertised on the link by routers, or added via manual configuration.
 
-ICMPv6
+### ICMPv6
 
 | virtual  |  custom          | Fields |
 |----------|------------------|---------------|
 | signal-A | signal-icmp6head | type:code:checksum |
 | signal-B | signal-icmp6data | Data |
 
-Ping/Pong
+#### Ping/Pong
 
 | virtual  |  custom          | Fields |
 |----------|------------------|---------------|
@@ -79,7 +81,7 @@ Ping/Pong
 | signal-B | signal-icmp6data | identifier:sequence |
 |   ...    |                  | payload |
 
-Route Advertisement
+#### Route Advertisement
 
 | virtual  |  custom          | Fields |
 |----------|------------------|---------------|
@@ -98,8 +100,6 @@ Route Advertisement
 
 Length is in pairs of signals (8 bytes)
 
-Implement at least:
-
   * source link layer
 	* type = 1
     * feathernet address is 4 bytes, which gets split across signals
@@ -112,17 +112,19 @@ Implement at least:
     * 4-7 = prefix data
 	
 
-UDP
+### UDP
 
 | virtual  |  custom         | Fields |
 |----------|-----------------|---------------|
 | signal-A | signal-udpports | source port : destination port |
 | signal-B | signal-udplen   | length : checksum |
+| signal-C |                 | data |
+|    ...   |                 | data... |
 
 
-Complete Signal order for IPv6 on vanilla signals
+### Signal order for IPv6 on vanilla signals
 
-In order to provide a mapping from the bytes in a packet to signals, it is neccesary to put the signals in a consistent order. Ideally, only Vanilla signals would be considered for this, for maximum compatibility, but this produces an MTU which is not sufficient for IPv6. The order of Vanilla signals is specified here, and a mod[TODO] is provided which creates the additional signals required to reach a MTU of 1280 as required by IPv6. Additionally, blueprints are provided [TODO] for converting an index and value to the given signal and vice versa.
+In order to provide a mapping from the bytes in a packet to signals, it is neccesary to put the signals in a consistent order. Ideally, only Vanilla signals would be considered for this, for maximum compatibility, but this produces an MTU which is not sufficient for IPv6. The order of Vanilla signals is specified here, and a mod is provided which creates the additional signals required to reach a MTU of 1280 as required by IPv6. Signals beyond the vanilla list are simply `signal-n` where `n` is the index, such as `signal-259`, `signal-260`, `signal-320`. Additionally, blueprints are provided for an implementation of converting an index and value to the given signal and vice versa.
 
 `signal-white`, `signal-grey`, and `signal-black` are left unordered, as these are used by the Feathernet link layer header.
 
@@ -374,6 +376,6 @@ In order to provide a mapping from the bytes in a packet to signals, it is necce
 |  243  |gate|
 |  244  |gun-turret|
 |  245  |laser-turret|
-|  256  |flamethrower-turret|
-|  257  |radar|
-|  258  |rocket-silo|		 
+|  246  |flamethrower-turret|
+|  247  |radar|
+|  248  |rocket-silo|		 
