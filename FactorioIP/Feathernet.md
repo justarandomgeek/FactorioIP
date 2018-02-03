@@ -458,7 +458,7 @@ Circuit communication outside of factorio is acheived through [Clusterio](https:
 
 ![Clusterio Bridge](Screenshots/ClusterioBridge.png)
 
-Inside Factorio, the Clusterio combinators are then connected in place of other protocol/application circuits to a slightly modified Feathernet receiver and standard transmitter. The receiver is modified to receive all FCP frames (with destination address preserved, unlike normal packets), and has a manually-configured address for sending packets directly out of the world. The transmitter is configured to send only Clusterio packets originating from non-local worlds. This filter arrangement means all nodes should end up with unique feathernet addresses, even across worlds, and that broadcasts work across worlds. Unicast to nodes in another world is not currently supported.
+Inside Factorio, the Clusterio combinators are then connected in place of other protocol/application circuits to a slightly modified Feathernet receiver and standard transmitter. The receiver is modified to receive all FCP frames (with destination address preserved, unlike normal packets), and has a manually-configured address for sending packets directly out of the world. The address used is the address declared by the router in its Source Link Layer option in Route Advertisements - in my case, the IPv4 of the router's end of the GRE tunnel. The transmitter is configured to send only Clusterio packets originating from non-local worlds. This filter arrangement means all nodes should end up with unique feathernet addresses, even across worlds, and that broadcasts work across worlds. Unicast to nodes in another world is not currently supported.
 
 ### Future Additions
 
