@@ -454,7 +454,7 @@ For each incoming packet, the payload data is played sequentially, one note ever
 
 ### Clusterio Bridge
 
-Circuit communication outside of factorio is acheived through [Clusterio](https://github.com/Danielv123/factorioClusterio#introduction), which provides an interface to send/receive signals between worlds via a small node.js application. IP communication is acheived by connecting to cluster with a custom bridge which converts circuit network frames to/from IP packets and exchanges with a local router over GRE. FCP packets are encoded as ethertype 0x88B5, which is reserved for local private experimentation. Do not forward these FCP packets beyond the GRE link. Forwarding FCP is not required, but was at times useful for debugging.
+Circuit communication outside of factorio is acheived through [Clusterio](https://github.com/Danielv123/factorioClusterio#introduction), which provides an interface to send/receive signals between worlds via a small node.js application. IP communication is acheived by connecting to cluster with a custom bridge which converts circuit network frames to/from IP packets and exchanges with a local router over GRE. FCP packets are encoded as ethertype 0x88B5, which is reserved for local private experimentation. Do not forward these FCP packets beyond the GRE link. Forwarding FCP to clusterio is not required, but was at times useful for debugging - these will probably not be forwarded in the future with a more advanced router node.
 
 ![Clusterio Bridge](Screenshots/ClusterioBridge.png)
 
