@@ -18,7 +18,7 @@ namespace FactorioIP
 
         CancellationToken rcvTok = new CancellationToken();
         CancellationToken sndTok = new CancellationToken();
-        byte[] wsrcvbuf = new byte[1000000];
+        byte[] wsrcvbuf = new byte[64000];
 
         JavaScriptSerializer json = new JavaScriptSerializer();
 
@@ -26,7 +26,9 @@ namespace FactorioIP
 
         public void Connect(string hostname, UInt16 port, bool secure = false)
         {
-            wsock = new ClientWebSocket();            
+            wsock = new ClientWebSocket();
+            // default buffers aren't big enough for full MTU packets
+            wsock.Options.SetBuffer(32000, 32000);
             wsock.ConnectAsync(new Uri($"{(secure?"wss":"ws")}://{hostname}:{port}/socket.io/?EIO=3&transport=websocket"), rcvTok).Wait();
             wsock.ReceiveAsync(new ArraySegment<byte>(wsrcvbuf), rcvTok).ContinueWith(CompleteReceive);
             
@@ -55,60 +57,75 @@ namespace FactorioIP
         }
 
 
+        int RcvOffset = 0;
+
         void CompleteReceive(Task<WebSocketReceiveResult> t)
         {
-            switch ((char)wsrcvbuf[0])
+            try
             {
-                case '0': // open
-                    Console.WriteLine("engine.io open");
-                    var conninfo = json.Deserialize<dynamic>(Encoding.UTF8.GetString(wsrcvbuf, 1, t.Result.Count - 1));
-                    sid = conninfo["sid"];
-                    pingTimeout = conninfo["pingTimeout"];
-                    pingInterval = conninfo["pingInterval"];
-                    Ping("test");
-                    break;
-                case '4': // message
-                    switch ((char)wsrcvbuf[1])
-                    {
-                        case '0': // connect (socketio)
-                            Console.WriteLine("socket.io connect");
-                            break;
-                        case '2': // event
-                            var eventdata = json.Deserialize<dynamic>(Encoding.UTF8.GetString(wsrcvbuf, 2, t.Result.Count - 2));
-                            Console.WriteLine("socket.io event " + eventdata[0]);
-                            if (eventHandlers.ContainsKey(eventdata[0]))
-                            {
-                                eventHandlers[eventdata[0]](eventdata[1]);
-                            }
-                            break;
-                    
-                        // ignore the rest...
-                        case '1': // disconnect (socketio)
-                        case '3': // ack
-                        case '4': // error
-                        case '5': // binary event
-                        case '6': // binary ack
-                        default:
-                            Console.WriteLine("Unhandled Socket.IO packet " + Encoding.UTF8.GetString(wsrcvbuf, 2, t.Result.Count - 2));
-                            break;
-                    }
-                    break;
+                switch ((char)wsrcvbuf[RcvOffset])
+                {
+                    case '0': // open
+                        Console.WriteLine("engine.io open");
+                        var conninfo = json.Deserialize<dynamic>(Encoding.UTF8.GetString(wsrcvbuf, RcvOffset+1, t.Result.Count - 1));
+                        sid = conninfo["sid"];
+                        pingTimeout = conninfo["pingTimeout"];
+                        pingInterval = conninfo["pingInterval"];
+                        Ping("test");
+                        break;
+                    case '4': // message
+                        switch ((char)wsrcvbuf[RcvOffset+1])
+                        {
+                            case '0': // connect (socketio)
+                                Console.WriteLine("socket.io connect");
+                                break;
+                            case '2': // event
+                                var eventdata = json.Deserialize<dynamic>(Encoding.UTF8.GetString(wsrcvbuf, RcvOffset+2, t.Result.Count - 2));
+                                Console.WriteLine("socket.io event " + eventdata[0]);
+                                if (eventHandlers.ContainsKey(eventdata[0]))
+                                {
+                                    eventHandlers[eventdata[0]](eventdata[1]);
+                                }
+                                break;
 
-                case '3': // pong   
-                    Console.WriteLine("engine.io pong");
-                    break;
+                            // ignore the rest...
+                            case '1': // disconnect (socketio)
+                            case '3': // ack
+                            case '4': // error
+                            case '5': // binary event
+                            case '6': // binary ack
+                            default:
+                                Console.WriteLine("Unhandled Socket.IO packet " + Encoding.UTF8.GetString(wsrcvbuf, RcvOffset + 2, t.Result.Count - 2));
+                                break;
+                        }
+                        break;
 
-                // just ignore the rest for now...
-                case '1': // request close
-                case '2': // ping                 
-                case '5': // upgrade
-                case '6': // noop
-                default:
-                    Console.WriteLine("Unhandled Engine.IO packet " + Encoding.UTF8.GetString(wsrcvbuf, 1, t.Result.Count - 1));
-                    break;
+                    case '3': // pong   
+                        Console.WriteLine("engine.io pong");
+                        break;
+
+                    // just ignore the rest for now...
+                    case '1': // request close
+                    case '2': // ping                 
+                    case '5': // upgrade
+                    case '6': // noop
+                    default:
+
+
+                        Console.WriteLine("Unhandled Engine.IO packet " + Encoding.UTF8.GetString(wsrcvbuf, RcvOffset + 1, t.Result.Count - 1));
+                        break;
+                }
+            }
+            catch
+            {
+                Console.WriteLine("Failed Parse: " + Encoding.UTF8.GetString(wsrcvbuf, RcvOffset, t.Result.Count));
+
+
+                RcvOffset += t.Result.Count;
             }
 
-            wsock.ReceiveAsync(new ArraySegment<byte>(wsrcvbuf), rcvTok).ContinueWith(CompleteReceive);
+            wsock.ReceiveAsync(new ArraySegment<byte>(wsrcvbuf, RcvOffset, wsrcvbuf.Length - RcvOffset), rcvTok).ContinueWith(CompleteReceive);
+            
         }
 
     }

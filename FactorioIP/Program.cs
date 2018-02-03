@@ -16,6 +16,11 @@ namespace FactorioIP
 {
     class Program
     {
+        struct TypeAndPacket
+        {
+            public UInt16 Type;
+            public byte[] Data;
+        }
         public static int uniqueID = new Random().Next();
         public static void Main(string[] args)
         {
@@ -26,7 +31,7 @@ namespace FactorioIP
             
             // buffer to put packets in...
             byte[] rcvbuf = new byte[1500];
-            var sendbuf = new Queue<byte[]>();
+            var sendbuf = new Queue<TypeAndPacket>();
             IAsyncResult ongoingsend = null;
 
             var clusterio = new SocketIOClient();
@@ -38,8 +43,8 @@ namespace FactorioIP
             });
             clusterio.On("processCombinatorSignal", t =>
             {
-                var packet = circuit_to_packet(t);
-                if (packet != null) sendbuf.Enqueue(packet);
+                TypeAndPacket packet = circuit_to_packet(t);
+                if (packet.Type != 0) sendbuf.Enqueue(packet);
             });
 
             clusterio.Connect("localhost", 8080);
@@ -106,14 +111,33 @@ namespace FactorioIP
                 
                 if ((ongoingsend?.IsCompleted!=false) && sendbuf.Count > 0)
                 {
-                    GREHeader outhead = new GREHeader { flags_ver = 0, protocol = 0x86dd };
+                    
                     var payload = sendbuf.Dequeue();
-                    var v6outHeader = IPv6Header.FromBytes(payload, 0);
-                    Console.WriteLine($"Type: {v6outHeader.nextHeader} Payload: {v6outHeader.payloadLen} From: {v6outHeader.source} To: {v6outHeader.dest}");
+
+                    GREHeader outhead = new GREHeader { flags_ver = 0, protocol = payload.Type };
+                    
+                    switch (payload.Type)
+                    {
+                        case 0x86dd:
+                            var v6outHeader = IPv6Header.FromBytes(payload.Data, 0);
+                            Console.WriteLine($"Type: {v6outHeader.nextHeader} Payload: {v6outHeader.payloadLen} From: {v6outHeader.source} To: {v6outHeader.dest}");
+                            break;
+                        case 0x0800:
+                            var v4outHeader = IPv4Header.FromBytes(payload.Data, 0);
+                            Console.WriteLine($"Type: {v4outHeader.protocol} Size: {v4outHeader.totalLen} From: {v4outHeader.source} To: {v4outHeader.dest}");
+                            break;
+                        case 0x88B5:
+                            //Console.WriteLine($"FCP");
+                            //TODO: move FCP prints form circuit_to_packet here with a proper header decode
+                            break;
+                        default:
+                            break;
+                    }
+                    
 
                     var packet = new List<ArraySegment<byte>>{
                         new ArraySegment<byte>(outhead.ToBytes()),
-                        new ArraySegment<byte>(payload)
+                        new ArraySegment<byte>(payload.Data)
                     };
                     ongoingsend = gresock.BeginSend(packet,SocketFlags.None,null,null);
                 }
@@ -137,34 +161,61 @@ namespace FactorioIP
             public Int32 count;
         }
 
-        static byte[] circuit_to_packet(dynamic circpacket)
+        static TypeAndPacket circuit_to_packet(dynamic circpacket)
         {
             var json = new JavaScriptSerializer();
             var frame = json.Deserialize<CircuitFramePacket>((string)json.Serialize(circpacket));
             byte[] framepacket = null;
+            UInt16 type = 0;
 
             // don't process my own reflection
-            if (frame.origin == "FactorioIP") return framepacket;
+            if (frame.origin == "FactorioIP") return new TypeAndPacket { Type = type, Data = framepacket };
 
             var sigdict = frame.frame.ToDictionary(fkey => fkey.name, fval => fval.count);
+            var size = signals.Count * 4;
 
             //check for a Feathernet header tagged for IP traffic
             if (sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 1)
             {
-                var size = signals.Count*4;
                 switch (sigdict["signal-0"] >> 28)
                 {
                     case 6:
                         size = ((UInt16)(sigdict["signal-1"]>>16)) + 40;
+                        type = 0x86dd;
                         break;
                     case 4:
                         size = ((UInt16)(sigdict["signal-0"] & 0xffff));
+                        type = 0x0800;
                         break;
                     default:
                         break;
                 }
+                
+            }
+            else if (sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 2)
+            {
+                
+                switch (sigdict["signal-0"])
+                {
+                    case 1:
+                        Console.WriteLine($"FCP Sol {sigdict["signal-1"]:x8}");
+                        type = 0x88B5;
+                        size = 8;
+                        break;
+                    case 2:
+                        Console.WriteLine($"FCP Adv {sigdict["signal-1"]:x8}");
+                        type = 0x88B5;
+                        size = 8;
+                        break;
+                    default:
+                        Console.WriteLine("Unknown FCP Message");
+                        break;
+                }
 
+            }
 
+            if (type != 0)
+            {
                 framepacket = new byte[size];
                 for (int i = 0; i < size; i += 4)
                 {
@@ -189,25 +240,7 @@ namespace FactorioIP
                     }
                 }
             }
-            else if (sigdict.ContainsKey("signal-white") && sigdict["signal-white"] == 2)
-            {
-                switch (sigdict["signal-0"])
-                {
-                    case 1:
-                        Console.WriteLine($"FCP Sol {sigdict["signal-1"]:x8}");
-                        break;
-                    case 2:
-                        Console.WriteLine($"FCP Adv {sigdict["signal-1"]:x8}");
-                        break;
-                    default:
-                        Console.WriteLine("Unknown FCP Message");
-                        break;
-                }
-
-            }
-
-
-            return framepacket;
+            return new TypeAndPacket { Type = type, Data = framepacket };
         }
 
         
@@ -233,7 +266,7 @@ namespace FactorioIP
 
                 frame.Add(new CircuitFrameValue
                 {
-                    type = (j < 42 || j > 248) ? "virtual" : j < 50 ? "fluid" : "item",
+                    type = (j < 42 || j > 249) ? "virtual" : j < 50 ? "fluid" : "item",
                     name = signals[j],
                     count = nextword,
                 });
@@ -503,11 +536,10 @@ namespace FactorioIP
             "gun-turret",
             "laser-turret",
             "flamethrower-turret",
+            "artillery-turret",
             "radar",
             "rocket-silo",
-
-            "signal-249",
-
+            
             "signal-250",
             "signal-251",
             "signal-252",
