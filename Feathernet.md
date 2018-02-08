@@ -389,6 +389,31 @@ In order to provide a mapping from the bytes in a packet to signals, it is necce
 |  249  |rocket-silo|		 
 
 
+### Signal List Format
+
+Due to the number of signals taken up by protocol headers, it is impractical to use raw signals beyond link-local scope. To facilitate such signalling on wider scales, a Signal List format is defined, to allow embedding arbitrary singals at arbitrary locations in the packet. Signal List may be used as a payload in any protocol that supports binary payload data.
+
+| offset | Fields |
+|--------|------------------|
+|    0   | flags:count:signalID|
+|    1   | data |
+|   ...  | data ... |
+
+A Signal List is composed of a single header signal, followed by one or more signal values. The header signal contains three fields:
+
+ * `flags`: 8 bit control flags
+   * All undefined flag bits MUST be set to 0.
+ * `count`: 8 bit count of sequential data signals
+ * `signalID`: 16 bit signal ID
+   * 0-319 defined as per IPv6 above
+   * 320-2047 reserved for ordered signal list expansion
+   * 2048-4095 reserved for local use with modded signals
+   * -1 = signal-grey
+   * -2 = signal-white
+   * -3 = signal-black
+   * All unlisted values reserved for future use
+
+To support non-sequential signals, an application may also use a list of Signal Lists, simply placing them one after another. Due to the `count` field, a valid Signal List header will always be non-zero, allowing easy identification of the end of a list-of-lists.
 
 ## Implementation 
 
@@ -442,8 +467,10 @@ The current node supports ICMP Echo Request/Reply message, and will emit Replies
 
 UDP ports can be connected to various devices taking circuit inputs. For demonstration purposes, I have connected a small graphical display and a small music player.
 
+##### Graphical Display
 The graphical display takes images in a headerless [pbm](http://netpbm.sourceforge.net/doc/pbm.html). Small images (32 * 38 - height could be increased to by configuring additional rows of lamps) can be sent with a command such as `convert image.png pbm:-|cut -d$'\n' -f 3 | nc -6uvv  2001:DB8::cc9:dd27 1234`, with appropriate address/port.
 
+##### Music Player
 The music player takes a series of 32bit words each containing 5 consecutive 6 bit notes to play.
 
 | Reserved | Note1 | Note2 | Note3 | Note4 | Note5 |
@@ -451,6 +478,7 @@ The music player takes a series of 32bit words each containing 5 consecutive 6 b
 | two high bits always 00 | six bits 0-64 | six bits 0-64 | six bits 0-64 | six bits 0-64 | six bits 0-64 |
 
 For each incoming packet, the payload data is played sequentially, one note every other tick, starting with the high-order note in each signal and advancing to the next signal after the lower-order note. After the last signal in a packet, the next buffered packet is played immediately. The note values are sent to a programmable speaker set to Piano, pitch is value.
+
 
 ### Clusterio Bridge
 
@@ -472,6 +500,7 @@ Various features are planned but not yet implemented in this version:
      * routers as ::0:0:worl:d_id on clusterio link
      * RA ::worl:d_id:0:0/96 to world link
  * Connect a decently fast CPU for TCP
+ * Work with Danielv123 to improve clusterio link to factorio
 
 
 

@@ -50,7 +50,6 @@
     <Compile Include="Protocol.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Feathernet.md" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
