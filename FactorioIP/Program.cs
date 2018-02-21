@@ -16,136 +16,81 @@ namespace FactorioIP
 {
     class Program
     {
-        struct TypeAndPacket
-        {
-            public UInt16 Type;
-            public byte[] Data;
-        }
         public static int uniqueID = new Random().Next();
         public static void Main(string[] args)
         {
-            // set up a socket for GRE=47, listen on any address...
-            Socket gresock = new Socket(SocketType.Raw, (ProtocolType)47);
-            gresock.Bind(new IPEndPoint(IPAddress.Any, 0));
-            gresock.Connect("10.42.2.1", 0);
-            
-            // buffer to put packets in...
-            byte[] rcvbuf = new byte[1500];
-            var sendbuf = new Queue<TypeAndPacket>();
-            IAsyncResult ongoingsend = null;
-
             var clusterio = new SocketIOClient();
+
             clusterio.On("hello", t =>
             {
                 Console.WriteLine("Clusterio Connected");
                 clusterio.Emit("registerSlave", new { instanceID = uniqueID });
                 clusterio.Emit("heartbeat");
             });
+            clusterio.Connect("localhost", 8080);
+
+
+
+            var gresock = new GRESocket("10.42.2.1", 
+                b => RecievePacket(b, cfp => clusterio.Emit("combinatorSignal", cfp))
+                );
+
             clusterio.On("processCombinatorSignal", t =>
             {
                 TypeAndPacket packet = circuit_to_packet(t);
-                if (packet.Type != 0) sendbuf.Enqueue(packet);
+                if (packet.Type != 0) gresock.EnqueueSend(packet);
             });
-
-            clusterio.Connect("localhost", 8080);
             
-
-            long nexthb = 0;
-
             while (true)
             {
-                var now = DateTimeOffset.Now.ToUniversalTime().ToUnixTimeMilliseconds();
-                // check for inbound packets to foward to clusterio
-
-                if (now >= nexthb)
-                {
-                    clusterio.Emit("heartbeat");
-                    nexthb = now + 10000;
-                }
-
-                if (gresock.Poll(0, SelectMode.SelectRead))
-                {
-                    gresock.Receive(rcvbuf);
-                    switch (rcvbuf[0]>>4)
-                    {
-                        case 4:
-                            var v4Header = IPv4Header.FromBytes(rcvbuf, 0);
-                            if (v4Header.protocol != 47) break; // only GRE... this should be handled by socket, but just to be sure...
-                            if (v4Header.headLen != 5) break; // don't currently handle any options
-                            var GRE4Header = GREHeader.FromBytes(rcvbuf, (v4Header.headLen * 4));
-                            if (GRE4Header.flags_ver != 0) break; // don't support any GRE flags, version is always 0
-
-                            // convert inner to json for clusterio and submit... for now we only have v6 inner
-                            switch (GRE4Header.protocol)
-                            {
-                                case 0x86dd:
-                                    var v6inHeader = IPv6Header.FromBytes(rcvbuf, ((v4Header.headLen + 1) * 4));
-                                    Console.WriteLine($"Type: {v6inHeader.nextHeader} Payload: {v6inHeader.payloadLen} From: {v6inHeader.source} To: {v6inHeader.dest}");
-                                    if (v6inHeader.payloadLen + 40 <= signals.Count * 4)
-                                    {
-                                        var circpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen);
-                                        clusterio.Emit("combinatorSignal", circpacket);
-                                    }
-                                    else
-                                    {
-                                        Console.WriteLine("Too large");
-                                    }
-
-
-                                    break;
-                                default:
-                                    break;
-                            }
-
-                            break;
-                        case 6:
-                            var v6Header = IPv6Header.FromBytes(rcvbuf, 0);
-                            var GRE6Header = GREHeader.FromBytes(rcvbuf, 40);
-
-                            break;
-                        default:
-                            break;
-                    }
-                    
-                }
-                
-                if ((ongoingsend?.IsCompleted!=false) && sendbuf.Count > 0)
-                {
-                    
-                    var payload = sendbuf.Dequeue();
-
-                    GREHeader outhead = new GREHeader { flags_ver = 0, protocol = payload.Type };
-                    
-                    switch (payload.Type)
-                    {
-                        case 0x86dd:
-                            var v6outHeader = IPv6Header.FromBytes(payload.Data, 0);
-                            Console.WriteLine($"Type: {v6outHeader.nextHeader} Payload: {v6outHeader.payloadLen} From: {v6outHeader.source} To: {v6outHeader.dest}");
-                            break;
-                        case 0x0800:
-                            var v4outHeader = IPv4Header.FromBytes(payload.Data, 0);
-                            Console.WriteLine($"Type: {v4outHeader.protocol} Size: {v4outHeader.totalLen} From: {v4outHeader.source} To: {v4outHeader.dest}");
-                            break;
-                        case 0x88B5:
-                            //Console.WriteLine($"FCP");
-                            //TODO: move FCP prints form circuit_to_packet here with a proper header decode
-                            break;
-                        default:
-                            break;
-                    }
-                    
-
-                    var packet = new List<ArraySegment<byte>>{
-                        new ArraySegment<byte>(outhead.ToBytes()),
-                        new ArraySegment<byte>(payload.Data)
-                    };
-                    ongoingsend = gresock.BeginSend(packet,SocketFlags.None,null,null);
-                }
-
-
-                
+                clusterio.Emit("heartbeat");
+                Thread.Sleep(10000);
             }
             
+        }
+
+        static void RecievePacket(byte[] rcvbuf, Action<CircuitFramePacket> sendFrame)
+        {
+            switch (rcvbuf[0] >> 4)
+            {
+                case 4:
+                    var v4Header = IPv4Header.FromBytes(rcvbuf, 0);
+                    if (v4Header.protocol != 47) break; // only GRE... this should be handled by socket, but just to be sure...
+                    if (v4Header.headLen != 5) break; // don't currently handle any options
+                    var GRE4Header = GREHeader.FromBytes(rcvbuf, (v4Header.headLen * 4));
+                    if (GRE4Header.flags_ver != 0) break; // don't support any GRE flags, version is always 0
+
+                    // convert inner to json for clusterio and submit... for now we only have v6 inner
+                    switch (GRE4Header.protocol)
+                    {
+                        case 0x86dd:
+                            var v6inHeader = IPv6Header.FromBytes(rcvbuf, ((v4Header.headLen + 1) * 4));
+                            Console.WriteLine($"Type: {v6inHeader.nextHeader} Payload: {v6inHeader.payloadLen} From: {v6inHeader.source} To: {v6inHeader.dest}");
+                            if (v6inHeader.payloadLen + 40 <= signals.Count * 4)
+                            {
+                                var circpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen);
+                                sendFrame?.Invoke(circpacket);
+                            }
+                            else
+                            {
+                                Console.WriteLine("Too large");
+                            }
+
+
+                            break;
+                        default:
+                            break;
+                    }
+
+                    break;
+                case 6:
+                    var v6Header = IPv6Header.FromBytes(rcvbuf, 0);
+                    var GRE6Header = GREHeader.FromBytes(rcvbuf, 40);
+
+                    break;
+                default:
+                    break;
+            }
         }
 
         struct CircuitFramePacket
