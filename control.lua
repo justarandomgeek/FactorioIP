@@ -224,7 +224,7 @@ function HandleInputTanks()
 			--get the content of the chest
 			local fluid = v.fluidbox[1]
 			if fluid ~= nil and math.floor(fluid.amount) > 0 then
-				AddItemToInputList(fluid.type, math.floor(fluid.amount))
+				AddItemToInputList(fluid.name, math.floor(fluid.amount))
 				fluid.amount = fluid.amount - math.floor(fluid.amount)
 			end
 			v.fluidbox[1] = fluid
@@ -273,13 +273,13 @@ function HandleOutputTanks()
 	local MAX_FLUID_AMOUNT = 1000
 	 for k,v in pairs(global.outputTanks) do
 		--.recipe.products[1].name
-		if v.recipe ~= nil then
-			local fluidName = v.recipe.products[1].name
+		if v.get_recipe() ~= nil then
+			local fluidName = v.get_recipe().products[1].name
 
 			--either get the fluid or reset it to the requested fluid
-			local fluid = v.fluidbox[1] or {type = fluidName, amount = 0}
-			if fluid.type ~= fluidName then
-				fluid = {type = fluidName, amount = 0}
+			local fluid = v.fluidbox[1] or {name = fluidName, amount = 0}
+			if fluid.name ~= fluidName then
+				fluid = {name = fluidName, amount = 0}
 			end
 
 			--if any fluid is missing then request the fluid
@@ -292,7 +292,7 @@ function HandleOutputTanks()
 					fluid.amount = fluid.amount + fluidToInsert
 				else
 					local fluidToRequestAmount = missingFluid - fluidToInsert
-					AddItemToOutputList(fluid.type, fluidToRequestAmount)
+					AddItemToOutputList(fluid.name, fluidToRequestAmount)
 				end
 			end
 
