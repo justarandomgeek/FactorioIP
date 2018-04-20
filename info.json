@@ -4,7 +4,7 @@
 "title": "Clusterio",
 "version": "1.5.3",
 "date": "31-12-2016",
-"author": "Danielv123 & Keyboardhack & justarandomgeek",
+"author": "Danielv123 & Keyboardhack & justarandomgeek & AreYouScared & psihius",
 "dependencies": ["base >= 0.13"],
 "factorio_version": "0.16",
 "description": "Allows transfer of items and signals between servers. *Server owners, see https://github.com/Danielv123/factorioClusterio for installation instructions*"

@@ -270,7 +270,6 @@ function HandleOutputChests()
 end
 
 function HandleOutputTanks()
-	local MAX_FLUID_AMOUNT = 1000
 	 for k,v in pairs(global.outputTanks) do
 		--.recipe.products[1].name
 		if v.get_recipe() ~= nil then
@@ -290,7 +289,10 @@ function HandleOutputTanks()
 				local fluidToInsert = RequestItemsFromStorage(fluidName, missingFluid)
 				if fluidToInsert > 0 then
 					fluid.amount = fluid.amount + fluidToInsert
-				else
+					if fluid.name == "steam" then
+						fluid.temperature = 600
+					end
+				else 
 					local fluidToRequestAmount = missingFluid - fluidToInsert
 					AddItemToOutputList(fluid.name, fluidToRequestAmount)
 				end

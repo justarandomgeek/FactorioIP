@@ -49,7 +49,7 @@ function MakeLogisticEntity(entity, name, pictureFilename, pictureTablePath, ico
 			icon = entity.icon,
 			icon_size = 32,
 			flags = {"goes-to-quickbar"},
-			subgroup = "storage",
+			subgroup = "liquid-subgroup",
 			order = "a[items]-b["..name.."]",
 			place_result = name,
 			stack_size = 50
@@ -78,13 +78,41 @@ function AddEntityToTech(techName, name)
 	return false
 end
 
-
+-- Do some magic nice stuffs
+data:extend(
+{
+  {
+    type = "item-group",
+    name = "test-group",
+    icon = "__clusterio__/graphics/tech.png",
+	icon_size = 256,
+    inventory_order = "f",
+    order = "e"
+  },
+  {
+    type = "item-subgroup",
+    name = "chest-subgroup",
+    group = "test-group",
+    order = "a"
+  },
+  {
+    type = "item-subgroup",
+    name = "liquid-subgroup",
+    group = "test-group",
+    order = "b"
+  },
+  {
+    type = "item-subgroup",
+    name = "signal-subgroup",
+    group = "test-group",
+    order = "c"
+  }
+})
 --make chests
 -- MakeLogisticEntity(table.deepcopy(data.raw["logistic-container"]["logistic-chest-requester"]), OUTPUT_CHEST_NAME, OUTPUT_CHEST_PICTURE_PATH, { "picture" }, OUTPUT_CHEST_ICON_PATH)
 -- MakeLogisticEntity(table.deepcopy(data.raw["container"]["iron-chest"]), 							INPUT_CHEST_NAME,	INPUT_CHEST_PICTURE_PATH, { "picture" },	INPUT_CHEST_ICON_PATH)
 
 -- Use ugly prototype based approach instead
-
 data:extend({
 	{
 		type = "recipe",
@@ -104,7 +132,7 @@ data:extend({
 		icon = OUTPUT_CHEST_ICON_PATH,
 		icon_size = OUTPUT_CHEST_ICON_SIZE,
 		flags = {"goes-to-quickbar"},
-		subgroup = "storage",
+		subgroup = "chest-subgroup",
 		order = "a[items]-b["..OUTPUT_CHEST_NAME.."]",
 		place_result = OUTPUT_CHEST_NAME,
 		stack_size = 50
@@ -127,37 +155,38 @@ data:extend({
 		icon = INPUT_CHEST_ICON_PATH,
 		icon_size = INPUT_CHEST_ICON_SIZE,
 		flags = {"goes-to-quickbar"},
-		subgroup = "storage",
+		subgroup = "chest-subgroup",
 		order = "a[items]-b["..INPUT_CHEST_NAME.."]",
 		place_result = INPUT_CHEST_NAME,
 		stack_size = 50
 	},
 })
-putChest = table.deepcopy(data.raw["logistic-container"]["logistic-chest-active-provider"])
+putChest = table.deepcopy(data.raw["logistic-container"]["logistic-chest-passive-provider"])
 putChest.picture = {
 	filename = INPUT_CHEST_PICTURE_PATH,
 	priority = "extra-high",
-	width = 1024,
-	height = 1024,
-	shift = {1.5, -1.5},
-	scale = .4
+	width = 902,
+	height = 902,
+	shift = {1.7, -1.5},
+	scale = .45,
 }
 putChest.collision_box = {{-4.35, -4.35}, {4.35, 4.35}}
 putChest.selection_box = {{-4.5, -4.5}, {4.5, 4.5}}
 putChest.max_health = 500
 putChest.minable = {hardness = 0.2, mining_time = 2, result = INPUT_CHEST_NAME}
-putChest.icon_size = 512
 putChest.icon = INPUT_CHEST_ICON_PATH
 putChest.name = INPUT_CHEST_NAME
+putChest.icon_size = INPUT_CHEST_ICON_SIZE
 
 
 getChest = table.deepcopy(data.raw["logistic-container"]["logistic-chest-requester"])
 getChest.picture = {
 	filename = OUTPUT_CHEST_PICTURE_PATH,
 	priority = "extra-high",
-	width = 512,
-	height = 512,
-	shift = {-0.25, 0.3},
+	width = 926,
+	height = 926,
+	shift = {-1, 2.2},
+    scale = .44,
 }
 getChest.collision_box = {{-7.35, -1.35}, {1.35, 7.35}}
 getChest.selection_box = {{-7.5, -1.5}, {1.5, 7.5}}
@@ -289,7 +318,7 @@ data:extend{
 		icon = tx.icon,
 		icon_size = 32,
 		flags = {"goes-to-quickbar"},
-		subgroup = "storage",
+		subgroup = "signal-subgroup",
 		place_result=TX_COMBINATOR_NAME,
 		order = "a[items]-b["..TX_COMBINATOR_NAME.."]",
 		stack_size = 50,
@@ -321,7 +350,7 @@ data:extend{
 		icon = rx.icon,
 		icon_size = 32,
 		flags = {"goes-to-quickbar"},
-		subgroup = "storage",
+		subgroup = "signal-subgroup",
 		place_result=RX_COMBINATOR_NAME,
 		order = "a[items]-b["..RX_COMBINATOR_NAME.."]",
 		stack_size = 50,
@@ -353,7 +382,7 @@ data:extend{
 		icon = inv.icon,
 		icon_size = 32,
 		flags = {"goes-to-quickbar"},
-		subgroup = "storage",
+		subgroup = "signal-subgroup",
 		place_result=INV_COMBINATOR_NAME,
 		order = "a[items]-b["..INV_COMBINATOR_NAME.."]",
 		stack_size = 50,
