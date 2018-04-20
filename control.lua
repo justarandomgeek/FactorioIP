@@ -290,9 +290,9 @@ function HandleOutputTanks()
 				if fluidToInsert > 0 then
 					fluid.amount = fluid.amount + fluidToInsert
 					if fluid.name == "steam" then
-						fluid.temperature = 600
+						fluid.temperature = 165
 					end
-				else 
+				else
 					local fluidToRequestAmount = missingFluid - fluidToInsert
 					AddItemToOutputList(fluid.name, fluidToRequestAmount)
 				end
