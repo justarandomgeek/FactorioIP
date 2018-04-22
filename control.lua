@@ -3,9 +3,33 @@ local json = require("json")
 
 function OnBuiltEntity(event)
 	local entity = event.created_entity
-	--only add entities that are not ghosts
-	if entity.type ~= "entity-ghost" then
-		AddEntity(entity)
+	local player = game.players[event.player_index]
+	
+	local x = entity.position.x
+	local y = entity.position.y
+	if not (entity and entity.valid) then return end
+	if ENTITY_TELEPORTATION_RESTRICTION then
+		if (x < ENTITY_TELEPORTATION_RESTRICTION_RANGE and x > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE and y < ENTITY_TELEPORTATION_RESTRICTION_RANGE and y > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE) then
+			--only add entities that are not ghosts
+			if entity.type ~= "entity-ghost" then
+				AddEntity(entity)
+			end
+		else
+			if player and player.valid then
+				if not player.mine_entity(entity, true) then
+					entity.destroy()
+					if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..ENTITY_TELEPORTATION_RESTRICTION_RANGE..")") end
+				end
+			else
+				entity.destroy()
+				if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..ENTITY_TELEPORTATION_RESTRICTION_RANGE..")") end
+			end
+		end
+	else
+		--only add entities that are not ghosts
+		if entity.type ~= "entity-ghost" then
+			AddEntity(entity)
+		end
 	end
 end
 
