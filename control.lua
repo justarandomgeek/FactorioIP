@@ -6,8 +6,15 @@ function OnBuiltEntity(event)
 	local player = false
 	if event.player_index then player = game.players[event.player_index] end
 	
-	local x = entity.position.x
-	local y = entity.position.y
+	local spawn
+	if player and player.valid then
+		spawn = game.players[event.player_index].force.get_spawn_position(entity.surface)
+	else
+		spawn = game.forces["player"].get_spawn_position(entity.surface)
+	end
+	local x = entity.position.x - spawn.x
+	local y = entity.position.y - spawn.y
+	
 	if not (entity and entity.valid) then return end
 	if ENTITY_TELEPORTATION_RESTRICTION and (entity.name == INPUT_CHEST_NAME or entity.name == OUTPUT_CHEST_NAME or entity.name == INPUT_TANK_NAME or entity.name == OUTPUT_TANK_NAME) then
 		if (x < ENTITY_TELEPORTATION_RESTRICTION_RANGE and x > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE and y < ENTITY_TELEPORTATION_RESTRICTION_RANGE and y > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE) then
