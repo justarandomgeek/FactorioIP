@@ -3,7 +3,8 @@ local json = require("json")
 
 function OnBuiltEntity(event)
 	local entity = event.created_entity
-	local player = game.players[event.player_index]
+	local player = false
+	if event.player_index then player = game.players[event.player_index] end
 	
 	local x = entity.position.x
 	local y = entity.position.y
@@ -16,13 +17,15 @@ function OnBuiltEntity(event)
 			end
 		else
 			if player and player.valid then
+				-- Tell the player what is happening
+				if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..ENTITY_TELEPORTATION_RESTRICTION_RANGE..")") end
+				-- kill entity, try to give it back to the player though
 				if not player.mine_entity(entity, true) then
 					entity.destroy()
-					if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..ENTITY_TELEPORTATION_RESTRICTION_RANGE..")") end
 				end
 			else
+				-- it wasn't placed by a player, we can't tell em whats wrong
 				entity.destroy()
-				if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..ENTITY_TELEPORTATION_RESTRICTION_RANGE..")") end
 			end
 		end
 	else
