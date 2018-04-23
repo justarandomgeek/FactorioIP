@@ -9,7 +9,7 @@ function OnBuiltEntity(event)
 	local x = entity.position.x
 	local y = entity.position.y
 	if not (entity and entity.valid) then return end
-	if ENTITY_TELEPORTATION_RESTRICTION then
+	if ENTITY_TELEPORTATION_RESTRICTION and (entity.name == INPUT_CHEST_NAME or entity.name == OUTPUT_CHEST_NAME or entity.name == INPUT_TANK_NAME or entity.name == OUTPUT_TANK_NAME) then
 		if (x < ENTITY_TELEPORTATION_RESTRICTION_RANGE and x > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE and y < ENTITY_TELEPORTATION_RESTRICTION_RANGE and y > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE) then
 			--only add entities that are not ghosts
 			if entity.type ~= "entity-ghost" then
