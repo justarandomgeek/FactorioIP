@@ -167,13 +167,13 @@ putChest.picture = {
 	priority = "extra-high",
 	width = 902,
 	height = 902,
-	shift = {1.7, -1.5},
-	scale = .45,
+	shift = {1.9, -1.5},
+	scale = .5,
 }
 putChest.collision_box = {{-4.35, -4.35}, {4.35, 4.35}}
 putChest.selection_box = {{-4.5, -4.5}, {4.5, 4.5}}
 putChest.max_health = 500
-putChest.minable = {hardness = 0.2, mining_time = 2, result = INPUT_CHEST_NAME}
+putChest.minable = {mining_time = 4, result = INPUT_CHEST_NAME}
 putChest.icon = INPUT_CHEST_ICON_PATH
 putChest.name = INPUT_CHEST_NAME
 putChest.icon_size = INPUT_CHEST_ICON_SIZE
@@ -185,13 +185,13 @@ getChest.picture = {
 	priority = "extra-high",
 	width = 926,
 	height = 926,
-	shift = {-1, 2.2},
-    scale = .44,
+	shift = {2.1, -1.5},
+    scale = .48,
 }
-getChest.collision_box = {{-7.35, -1.35}, {1.35, 7.35}}
-getChest.selection_box = {{-7.5, -1.5}, {1.5, 7.5}}
+getChest.collision_box = {{-4.35, -4.35}, {4.35, 4.35}}
+getChest.selection_box = {{-4.5, -4.5}, {4.5, 4.5}}
 getChest.max_health = 500
-getChest.minable = {mining_time = 1, result = OUTPUT_CHEST_NAME}
+getChest.minable = {mining_time = 4, result = OUTPUT_CHEST_NAME}
 getChest.name = OUTPUT_CHEST_NAME
 getChest.icon = OUTPUT_CHEST_ICON_PATH
 getChest.icon_size = OUTPUT_CHEST_ICON_SIZE
