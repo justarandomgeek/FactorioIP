@@ -277,7 +277,7 @@ function HandleOutputChests()
 		if v.valid and not v.to_be_deconstructed(v.force) then
 			--get the inventory here once for faster execution
 			local chestInventory = v.get_inventory(defines.inventory.chest)
-			for i = 1, 10 do
+			for i = 1, 12 do
 				--the item the chest wants
 				local requestItem = v.get_request_slot(i)
 				if requestItem ~= nil then
