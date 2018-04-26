@@ -543,6 +543,7 @@ end
 --[[ Remote Thing ]]--
 remote.add_interface("clusterio",
 {
+	runFunction=function(functionToCall) functionToCall() end,
 	import = function(itemName, itemCount)
 		GiveItemsToStorage(itemName, itemCount)
 	end,
