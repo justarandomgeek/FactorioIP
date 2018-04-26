@@ -21,7 +21,7 @@ function OnBuiltEntity(event)
 	if name == "entity-ghost" then name = entity.ghost_name end
 	
 	if ENTITY_TELEPORTATION_RESTRICTION and (name == INPUT_CHEST_NAME or name == OUTPUT_CHEST_NAME or name == INPUT_TANK_NAME or name == OUTPUT_TANK_NAME) then
-		if (x < ENTITY_TELEPORTATION_RESTRICTION_RANGE and x > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE and y < ENTITY_TELEPORTATION_RESTRICTION_RANGE and y > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE) then
+		if (x < global.config.PlacableArea and x > 0-global.config.PlacableArea and y < global.config.PlacableArea and y > 0-global.config.PlacableArea) then
 			--only add entities that are not ghosts
 			if entity.type ~= "entity-ghost" then
 				AddEntity(entity)
@@ -29,7 +29,7 @@ function OnBuiltEntity(event)
 		else
 			if player and player.valid then
 				-- Tell the player what is happening
-				if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..ENTITY_TELEPORTATION_RESTRICTION_RANGE..")") end
+				if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..global.config.PlacableArea..")") end
 				-- kill entity, try to give it back to the player though
 				if not player.mine_entity(entity, true) then
 					entity.destroy()
@@ -129,6 +129,8 @@ end)
 
 
 script.on_init(function()
+	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=400} end --MOVE TO script.on_init or something
+	
 	Reset()
 end)
 
@@ -650,13 +652,21 @@ function processElemGui(event,toUpdateConfigName)--VERY WIP
 	end
 end
 
-
+script.on_event(defines.events.on_gui_value_changed,function(event) 
+	if event.element.name=="clusterio-Placing-Bounding-Box" then 
+		global.config.PlacableArea=event.element.slider_value 
+		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption="Chest/fluid bounding box: "..global.config.PlacableArea
+	end 
+end)
 
 
 function createMainConfigGui(parent)
 	local pane = parent.add{type="frame", name="clusterio-main-config-gui", direction="vertical"}
 	pane.add{type="button", name="clusterio-Item-WB-list", caption="Item White/Black list"}
     pane.add{type="button", name="clusterio-Fluid-WB-list", caption="Fluid White/Black list"}
+	pane.add{type="label", caption="Chest/fluid bounding box: "..global.config.PlacableArea,name="clusterio-Placing-Bounding-Box-Label"}
+	pane.add{type="slider", name="clusterio-Placing-Bounding-Box",minimum_value=0,maximum_value=800,value=global.config.PlacableArea}
+	
 end
 function processMainConfigGui(event)
 	if event.element.name=="clusterio-Item-WB-list" then
@@ -678,7 +688,6 @@ script.on_event(defines.events.on_gui_checked_state_changed, function(event)
 end)
 	
 script.on_event(defines.events.on_gui_click, function(event)
-	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false} end  --MOVE TO script.on_init or something
 	if not (event.element and event.element.valid) then return end
 	local player = game.players[event.player_index]
 	if event.element.parent.name=="clusterio-main-config-gui" then processMainConfigGui(event) return end
@@ -700,7 +709,6 @@ end)
 
 
 
-script.on_event(defines.events.on_player_joined_game,function(event) if game.players[event.player_index].admin then
-createMainConfigGui(game.players[event.player_index].gui.top) end
+script.on_event(defines.events.on_player_joined_game,function(event) if game.players[event.player_index].admin then  createMainConfigGui(game.players[event.player_index].gui.top) end
 end)
 
