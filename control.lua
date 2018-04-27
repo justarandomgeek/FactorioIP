@@ -661,7 +661,11 @@ script.on_event(defines.events.on_gui_value_changed,function(event)
 end)
 
 
-function createMainConfigGui(parent)
+function toggleMainConfigGui(parent)
+	if parent["clusterio-main-config-gui"] then
+        parent["clusterio-main-config-gui"].destroy()
+        return
+    end
 	local pane = parent.add{type="frame", name="clusterio-main-config-gui", direction="vertical"}
 	pane.add{type="button", name="clusterio-Item-WB-list", caption="Item White/Black list"}
     pane.add{type="button", name="clusterio-Fluid-WB-list", caption="Fluid White/Black list"}
@@ -692,6 +696,7 @@ script.on_event(defines.events.on_gui_click, function(event)
 	if not (event.element and event.element.valid) then return end
 	local player = game.players[event.player_index]
 	if event.element.parent.name=="clusterio-main-config-gui" then processMainConfigGui(event) return end
+	if event.element.name=="clusterio-main-config-gui-toggle-button" then toggleMainConfigGui(game.players[event.player_index].gui.top) return end
 end)
 
 script.on_event(defines.events.on_gui_elem_changed, function(event)
@@ -707,9 +712,17 @@ script.on_event(defines.events.on_gui_elem_changed, function(event)
 	end
 end)
 
+function makeConfigButton(parent)
+	local pane = parent.add{type="frame", name="clusterio-main-config-gui-button", direction="vertical"}
+	pane.add{type="button", name="clusterio-main-config-gui-toggle-button", caption="config"}
+    
+end
 
 
 
-script.on_event(defines.events.on_player_joined_game,function(event) if game.players[event.player_index].admin then  createMainConfigGui(game.players[event.player_index].gui.top) end
+script.on_event(defines.events.on_player_joined_game,function(event) 
+	if game.players[event.player_index].admin then  
+		makeConfigButton(game.players[event.player_index].gui.top)
+	end
 end)
 
