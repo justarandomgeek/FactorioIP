@@ -129,8 +129,6 @@ end)
 
 
 script.on_init(function()
-	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=400} end --MOVE TO script.on_init or something
-	
 	Reset()
 end)
 
@@ -217,6 +215,9 @@ end
 function Reset()
 	global.ticksSinceMasterPinged = 601
 
+	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=400} end
+	
+	
 	global.outputList = {}
 	global.inputList = {}
 	global.itemStorage = {}
@@ -543,7 +544,6 @@ end
 --[[ Remote Thing ]]--
 remote.add_interface("clusterio",
 {
-	runFunction=function(functionToCall) functionToCall() end,
 	import = function(itemName, itemCount)
 		GiveItemsToStorage(itemName, itemCount)
 	end,
