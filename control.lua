@@ -714,9 +714,10 @@ script.on_event(defines.events.on_gui_elem_changed, function(event)
 end)
 
 function makeConfigButton(parent)
-	local pane = parent.add{type="frame", name="clusterio-main-config-gui-button", direction="vertical"}
-	pane.add{type="button", name="clusterio-main-config-gui-toggle-button", caption="config"}
-    
+	if not parent["clusterio-main-config-gui-button"] then
+		local pane = parent.add{type="frame", name="clusterio-main-config-gui-button", direction="vertical"}
+		pane.add{type="button", name="clusterio-main-config-gui-toggle-button", caption="config"}
+    end
 end
 
 
