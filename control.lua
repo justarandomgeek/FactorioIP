@@ -727,4 +727,8 @@ script.on_event(defines.events.on_player_joined_game,function(event)
 		makeConfigButton(game.players[event.player_index].gui.top)
 	end
 end)
-
+script.on_event(defines.events.on_player_died,function(event) 
+	local msg="!shout "..game.players[event.player_index].name.." has been killed"
+	if event.cause~=nil then msg=msg.." by "..event.cause.name else msg=msg.."." end
+	game.print( msg)
+end)--game.write_file("alerts.txt","player_died, "..game.players[event.player_index].name.." has killed by "..(event.cause or {name="unknown"}).name,true) end)--
