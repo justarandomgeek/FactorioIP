@@ -21,7 +21,7 @@ function OnBuiltEntity(event)
 	if name == "entity-ghost" then name = entity.ghost_name end
 	
 	if ENTITY_TELEPORTATION_RESTRICTION and (name == INPUT_CHEST_NAME or name == OUTPUT_CHEST_NAME or name == INPUT_TANK_NAME or name == OUTPUT_TANK_NAME) then
-		if (x < ENTITY_TELEPORTATION_RESTRICTION_RANGE and x > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE and y < ENTITY_TELEPORTATION_RESTRICTION_RANGE and y > 0-ENTITY_TELEPORTATION_RESTRICTION_RANGE) then
+		if (x < global.config.PlacableArea and x > 0-global.config.PlacableArea and y < global.config.PlacableArea and y > 0-global.config.PlacableArea) then
 			--only add entities that are not ghosts
 			if entity.type ~= "entity-ghost" then
 				AddEntity(entity)
@@ -29,7 +29,7 @@ function OnBuiltEntity(event)
 		else
 			if player and player.valid then
 				-- Tell the player what is happening
-				if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..ENTITY_TELEPORTATION_RESTRICTION_RANGE..")") end
+				if player then player.print("Attempted placing entity outside allowed area (placed at x "..x.." y "..y.." out of allowed "..global.config.PlacableArea..")") end
 				-- kill entity, try to give it back to the player though
 				if not player.mine_entity(entity, true) then
 					entity.destroy()
@@ -215,6 +215,9 @@ end
 function Reset()
 	global.ticksSinceMasterPinged = 601
 
+	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=400} end
+	
+	
 	global.outputList = {}
 	global.inputList = {}
 	global.itemStorage = {}
@@ -246,12 +249,14 @@ function HandleInputChests()
 		if v.valid then
 			--get the content of the chest
 			local items = v.get_inventory(defines.inventory.chest).get_contents()
+			local inventory=v.get_inventory(defines.inventory.chest)
 			--write everything to the file
 			for itemName, itemCount in pairs(items) do
-				AddItemToInputList(itemName, itemCount)
+				if isItemLegal(itemName) then
+					AddItemToInputList(itemName, itemCount)
+					inventory.remove({name=itemName,count=itemCount})
+				end
 			end
-			-- clear the inventory
-			v.get_inventory(defines.inventory.chest).clear()
 		end
 	end
 end
@@ -262,8 +267,10 @@ function HandleInputTanks()
 			--get the content of the chest
 			local fluid = v.fluidbox[1]
 			if fluid ~= nil and math.floor(fluid.amount) > 0 then
-				AddItemToInputList(fluid.name, math.floor(fluid.amount))
-				fluid.amount = fluid.amount - math.floor(fluid.amount)
+				if isFluidLegal(fluid.name) then
+					AddItemToInputList(fluid.name, math.floor(fluid.amount))
+					fluid.amount = fluid.amount - math.floor(fluid.amount)
+				end
 			end
 			v.fluidbox[1] = fluid
 		end
@@ -281,24 +288,26 @@ function HandleOutputChests()
 				--the item the chest wants
 				local requestItem = v.get_request_slot(i)
 				if requestItem ~= nil then
-					local itemsInChest = chestInventory.get_item_count(requestItem.name)
-					--if there isn't enough items in the chest
-					if itemsInChest < requestItem.count then
-						local additionalItemRequiredCount = requestItem.count - itemsInChest
-						local itemCountAllowedToInsert = RequestItemsFromStorage(requestItem.name, additionalItemRequiredCount)
-						if itemCountAllowedToInsert > 0 then
-							simpleItemStack.name = requestItem.name
-							simpleItemStack.count = itemCountAllowedToInsert
-							--insert the missing items
-							local insertedItemsCount = chestInventory.insert(simpleItemStack)
-							local itemsNotInsertedCount = itemCountAllowedToInsert - insertedItemsCount
+					if isItemLegal(requestItem.name) then
+						local itemsInChest = chestInventory.get_item_count(requestItem.name)
+						--if there isn't enough items in the chest
+						if itemsInChest < requestItem.count then
+							local additionalItemRequiredCount = requestItem.count - itemsInChest
+							local itemCountAllowedToInsert = RequestItemsFromStorage(requestItem.name, additionalItemRequiredCount)
+							if itemCountAllowedToInsert > 0 then
+								simpleItemStack.name = requestItem.name
+								simpleItemStack.count = itemCountAllowedToInsert
+								--insert the missing items
+								local insertedItemsCount = chestInventory.insert(simpleItemStack)
+								local itemsNotInsertedCount = itemCountAllowedToInsert - insertedItemsCount
 
-							if itemsNotInsertedCount > 0 then
-								GiveItemsToStorage(requestItem.name, itemsNotInsertedCount)
+								if itemsNotInsertedCount > 0 then
+									GiveItemsToStorage(requestItem.name, itemsNotInsertedCount)
+								end
+							else
+								local missingItems = additionalItemRequiredCount - itemCountAllowedToInsert
+								AddItemToOutputList(requestItem.name, missingItems)
 							end
-						else
-							local missingItems = additionalItemRequiredCount - itemCountAllowedToInsert
-							AddItemToOutputList(requestItem.name, missingItems)
 						end
 					end
 				end
@@ -323,7 +332,7 @@ function HandleOutputTanks()
 			--from store and give either what it's missing or
 			--the rest of the liquid in the system
 			local missingFluid = math.max(math.ceil(MAX_FLUID_AMOUNT - fluid.amount), 0)
-			if missingFluid > 0 then
+			if missingFluid > 0 and isFluidLegal(fluidName)then
 				local fluidToInsert = RequestItemsFromStorage(fluidName, missingFluid)
 				if fluidToInsert > 0 then
 					fluid.amount = fluid.amount + fluidToInsert
@@ -337,8 +346,8 @@ function HandleOutputTanks()
 			end
 
 		v.fluidbox[1] = fluid
-	 end
-end
+		end
+	end
 end
 
 
@@ -535,6 +544,7 @@ end
 --[[ Remote Thing ]]--
 remote.add_interface("clusterio",
 {
+	runfunction=function(functionToRun) functionToRun() end,
 	import = function(itemName, itemCount)
 		GiveItemsToStorage(itemName, itemCount)
 	end,
@@ -583,3 +593,137 @@ remote.add_interface("clusterio",
 		UpdateInvCombinators()
 	end
 })
+
+
+
+
+function isFluidLegal(name)
+	for _,itemName in pairs(global.config.BWfluids) do
+		if itemName==name then
+			return global.config.fluid_is_whitelist
+		end
+	end
+	return not global.config.fluid_is_whitelist
+end
+function isItemLegal(name)
+	for _,itemName in pairs(global.config.BWitems) do
+		if itemName==name then
+			return global.config.item_is_whitelist
+		end
+	end
+	return not global.config.item_is_whitelist
+end
+function createElemGui_INTERNAL(pane,guiName,elem_type,loadingList)
+	local gui = pane.add{ type = "table", name = guiName, column_count = 5 }
+	for _,item in pairs(loadingList) do
+		gui.add{type="choose-elem-button",elem_type=elem_type,item=item,fluid=item}
+	end
+	gui.add{type="choose-elem-button",elem_type=elem_type}
+end
+
+
+function toggleBWItemListGui(parent)
+	if parent["clusterio-black-white-item-list-config"] then
+        parent["clusterio-black-white-item-list-config"].destroy()
+        return
+    end
+	local pane=parent.add{type="frame", name="clusterio-black-white-item-list-config", direction="vertical"}
+	pane.add{type="label",caption="Item"}
+	pane.add{type="checkbox", name="clusterio-is-item-whitelist", caption="whitelist",state=global.config.item_is_whitelist}
+	createElemGui_INTERNAL(pane,"item-black-white-list","item",global.config.BWitems)
+end
+function toggleBWFluidListGui(parent)
+	if parent["clusterio-black-white-fluid-list-config"] then
+        parent["clusterio-black-white-fluid-list-config"].destroy()
+        return
+    end
+	local pane=parent.add{type="frame", name="clusterio-black-white-fluid-list-config", direction="vertical"}
+	pane.add{type="label",caption="Fluid"}
+	pane.add{type="checkbox", name="clusterio-is-fluid-whitelist", caption="whitelist",state=global.config.fluid_is_whitelist}
+	createElemGui_INTERNAL(pane,"fluid-black-white-list","fluid",global.config.BWfluids)
+end
+function processElemGui(event,toUpdateConfigName)--VERY WIP
+	parent=event.element.parent
+	if event.element.elem_value==nil then event.element.destroy()
+	else parent.add{type="choose-elem-button",elem_type=parent.children[1].elem_type} end
+	global.config[toUpdateConfigName]={}
+	for _,guiElement in pairs(parent.children) do
+		if guiElement.elem_value~=nil then
+			table.insert(global.config[toUpdateConfigName],guiElement.elem_value)
+		end
+	end
+end
+
+script.on_event(defines.events.on_gui_value_changed,function(event) 
+	if event.element.name=="clusterio-Placing-Bounding-Box" then 
+		global.config.PlacableArea=event.element.slider_value 
+		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption="Chest/fluid bounding box: "..global.config.PlacableArea
+	end 
+end)
+
+
+function toggleMainConfigGui(parent)
+	if parent["clusterio-main-config-gui"] then
+        parent["clusterio-main-config-gui"].destroy()
+        return
+    end
+	local pane = parent.add{type="frame", name="clusterio-main-config-gui", direction="vertical"}
+	pane.add{type="button", name="clusterio-Item-WB-list", caption="Item White/Black list"}
+    pane.add{type="button", name="clusterio-Fluid-WB-list", caption="Fluid White/Black list"}
+	pane.add{type="label", caption="Chest/fluid bounding box: "..global.config.PlacableArea,name="clusterio-Placing-Bounding-Box-Label"}
+	pane.add{type="slider", name="clusterio-Placing-Bounding-Box",minimum_value=0,maximum_value=800,value=global.config.PlacableArea}
+	
+end
+function processMainConfigGui(event)
+	if event.element.name=="clusterio-Item-WB-list" then
+		toggleBWItemListGui(game.players[event.player_index].gui.top)
+	end
+	if event.element.name=="clusterio-Fluid-WB-list" then
+		toggleBWFluidListGui(game.players[event.player_index].gui.top)
+	end
+end
+script.on_event(defines.events.on_gui_checked_state_changed, function(event) 
+	if event.element.name=="clusterio-is-fluid-whitelist" then 
+		global.config.fluid_is_whitelist=event.element.state 
+		return
+	end
+	if event.element.name=="clusterio-is-item-whitelist" then 
+		global.config.item_is_whitelist=event.element.state 
+		return
+	end
+end)
+	
+script.on_event(defines.events.on_gui_click, function(event)
+	if not (event.element and event.element.valid) then return end
+	local player = game.players[event.player_index]
+	if event.element.parent.name=="clusterio-main-config-gui" then processMainConfigGui(event) return end
+	if event.element.name=="clusterio-main-config-gui-toggle-button" then toggleMainConfigGui(game.players[event.player_index].gui.top) return end
+end)
+
+script.on_event(defines.events.on_gui_elem_changed, function(event)
+	if not (event.element and event.element.valid) then return end
+	
+	if event.element.parent.name=="item-black-white-list" then
+		processElemGui(event,"BWitems")
+		return
+	end
+	if event.element.parent.name=="fluid-black-white-list" then
+		processElemGui(event,"BWfluids")
+		return
+	end
+end)
+
+function makeConfigButton(parent)
+	local pane = parent.add{type="frame", name="clusterio-main-config-gui-button", direction="vertical"}
+	pane.add{type="button", name="clusterio-main-config-gui-toggle-button", caption="config"}
+    
+end
+
+
+
+script.on_event(defines.events.on_player_joined_game,function(event) 
+	if game.players[event.player_index].admin then  
+		makeConfigButton(game.players[event.player_index].gui.top)
+	end
+end)
+
