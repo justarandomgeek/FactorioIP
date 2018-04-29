@@ -161,7 +161,7 @@ data:extend({
 		stack_size = 50
 	},
 })
-putChest = table.deepcopy(data.raw["logistic-container"]["logistic-chest-passive-provider"])
+putChest = table.deepcopy(data.raw["container"]["steel-chest"])
 putChest.picture = {
 	filename = INPUT_CHEST_PICTURE_PATH,
 	priority = "extra-high",
