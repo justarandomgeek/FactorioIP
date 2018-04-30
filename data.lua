@@ -170,7 +170,7 @@ putChest.picture = {
 	shift = {1.9, -1.5},
 	scale = .5,
 }
-putChest.collision_box = {{-4, -4}, {4, 4}}
+putChest.collision_box = {{-4.35, -4.35}, {4.35, 4.35}}
 putChest.selection_box = {{-4.5, -4.5}, {4.5, 4.5}}
 putChest.max_health = 500
 putChest.minable = {mining_time = 4, result = INPUT_CHEST_NAME}
