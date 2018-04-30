@@ -142,17 +142,9 @@ script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
 	HandleTXCombinators()
 
-	local todo = game.tick % UPDATE_RATE
-
-	local onlinePlayers = GetOnlinePlayerCount()
-
-	if global.previousPlayerCount == nil or global.previousPlayerCount ~= onlinePlayers then
-		Reset()
-	end
-
-	global.previousPlayerCount = onlinePlayers
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then
+		local todo = game.tick % UPDATE_RATE
 		if todo == 0 then
 			HandleInputChests()
 		elseif todo == 1 then
@@ -202,16 +194,6 @@ function ExportFluidFlows()
 	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
 end
 
-function GetOnlinePlayerCount()
-	local onlinePlayers = 0
-	for k, player in pairs(game.players) do
-		if player.connected then
-			onlinePlayers = onlinePlayers + 1
-		end
-	end
-	return onlinePlayers
-end
-
 function Reset()
 	global.ticksSinceMasterPinged = 601
 
@@ -241,7 +223,6 @@ function Reset()
 	AddAllEntitiesOfName(RX_COMBINATOR_NAME)
 	AddAllEntitiesOfName(TX_COMBINATOR_NAME)
 	AddAllEntitiesOfName(INV_COMBINATOR_NAME)
-	game.print("reset")
 end
 
 function HandleInputChests()
