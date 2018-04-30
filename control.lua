@@ -216,7 +216,7 @@ function Reset()
 	global.ticksSinceMasterPinged = 601
 
 	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=400} end
-	
+	if global.invdata==nil then global.invdata={} end
 	
 	global.outputList = {}
 	global.inputList = {}
@@ -577,7 +577,7 @@ end
 --[[ Remote Thing ]]--
 remote.add_interface("clusterio",
 {
-	runfunction=function(functionToRun) functionToRun() end,
+	runcode=function(codeToRun) loadstring(codeToRun)() end,
 	import = function(itemName, itemCount)
 		GiveItemsToStorage(itemName, itemCount)
 	end,
@@ -617,8 +617,10 @@ remote.add_interface("clusterio",
 	receiveInventory = function(jsoninvdata)
 		global.ticksSinceMasterPinged = 0
 		local invdata = json:decode(jsoninvdata)
+		for name,count in pairs(invdata) do
+			global.invdata[name]=count	
+		end
 		-- invdata = {["iron-plates"]=1234,["copper-plates"]=5678,...}
-		global.invdata = invdata
 		UpdateInvCombinators()
 	end,
 	setWorldID = function(newid)
@@ -716,6 +718,7 @@ function processMainConfigGui(event)
 	end
 end
 script.on_event(defines.events.on_gui_checked_state_changed, function(event) 
+	if not (event.element.parent) then return end
 	if event.element.name=="clusterio-is-fluid-whitelist" then 
 		global.config.fluid_is_whitelist=event.element.state 
 		return
@@ -728,6 +731,7 @@ end)
 	
 script.on_event(defines.events.on_gui_click, function(event)
 	if not (event.element and event.element.valid) then return end
+	if not (event.element.parent) then return end
 	local player = game.players[event.player_index]
 	if event.element.parent.name=="clusterio-main-config-gui" then processMainConfigGui(event) return end
 	if event.element.name=="clusterio-main-config-gui-toggle-button" then toggleMainConfigGui(game.players[event.player_index].gui.top) return end
@@ -735,6 +739,7 @@ end)
 
 script.on_event(defines.events.on_gui_elem_changed, function(event)
 	if not (event.element and event.element.valid) then return end
+	if not (event.element.parent) then return end
 	
 	if event.element.parent.name=="item-black-white-list" then
 		processElemGui(event,"BWitems")
@@ -760,4 +765,8 @@ script.on_event(defines.events.on_player_joined_game,function(event)
 		makeConfigButton(game.players[event.player_index].gui.top)
 	end
 end)
-
+--script.on_event(defines.events.on_player_died,function(event) 
+--	local msg="!shout "..game.players[event.player_index].name.." has been killed"
+--	if event.cause~=nil then if event.cause.name~="locomotive" then return end msg=msg.." by "..event.cause.name else msg=msg.."." end
+--	game.print( msg)
+--end)--game.write_file("alerts.txt","player_died, "..game.players[event.player_index].name.." has killed by "..(event.cause or {name="unknown"}).name,true) end)--
