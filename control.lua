@@ -666,6 +666,7 @@ function processMainConfigGui(event)
 	end
 end
 script.on_event(defines.events.on_gui_checked_state_changed, function(event) 
+	if not (event.element.parent) then return end
 	if event.element.name=="clusterio-is-fluid-whitelist" then 
 		global.config.fluid_is_whitelist=event.element.state 
 		return
@@ -678,6 +679,7 @@ end)
 	
 script.on_event(defines.events.on_gui_click, function(event)
 	if not (event.element and event.element.valid) then return end
+	if not (event.element.parent) then return end
 	local player = game.players[event.player_index]
 	if event.element.parent.name=="clusterio-main-config-gui" then processMainConfigGui(event) return end
 	if event.element.name=="clusterio-main-config-gui-toggle-button" then toggleMainConfigGui(game.players[event.player_index].gui.top) return end
@@ -685,6 +687,7 @@ end)
 
 script.on_event(defines.events.on_gui_elem_changed, function(event)
 	if not (event.element and event.element.valid) then return end
+	if not (event.element.parent) then return end
 	
 	if event.element.parent.name=="item-black-white-list" then
 		processElemGui(event,"BWitems")
