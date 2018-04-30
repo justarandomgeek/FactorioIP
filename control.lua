@@ -168,7 +168,9 @@ script.on_event(defines.events.on_tick, function(event)
 		--much at once. If it wasn't limited then the electricity could
 		--make small burst of requests which requests >10x more than it needs
 		--which could temporarily starve other networks.
-		elseif todo == 5 and timeSinceLastElectricityUpdate >= 60 * 5 then -- only update ever 5 seconds
+		--Updating every 4 seconds give two chances to give electricity in
+		--the 10 second period.
+		elseif todo == 5 and timeSinceLastElectricityUpdate >= 60 * 4 then -- only update ever 4 seconds
 			HandleOutputElectricity()
 			global.lastElectricityUpdate = game.tick
 		elseif todo == 6 then
