@@ -20,6 +20,19 @@ OUTPUT_TANK_NAME = "get-tank"
 OUTPUT_TANK_PICTURE_PATH = nil
 OUTPUT_TANK_ICON_PATH = nil
 
+--put electricty into this thing
+INPUT_ELECTRICITY_NAME = "put-electricity"
+INPUT_ELECTRICITY_PICTURE_PATH = nil
+INPUT_ELECTRICITY_ICON_PATH = nil
+
+--get electricity from this thing
+OUTPUT_ELECTRICITY_NAME = "get-electricity"
+OUTPUT_ELECTRICITY_PICTURE_PATH = nil
+OUTPUT_ELECTRICITY_ICON_PATH = nil
+
+--item name that electricity uses
+ELECTRICITY_ITEM_NAME = "electricity"
+
 MAX_RX_BUFFER_SIZE = 40 -- slightly more than one second
 RX_COMBINATOR_NAME = "get-combinator"
 TX_COMBINATOR_NAME = "put-combinator"

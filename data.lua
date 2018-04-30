@@ -81,32 +81,38 @@ end
 -- Do some magic nice stuffs
 data:extend(
 {
-  {
-    type = "item-group",
-    name = "test-group",
-    icon = "__clusterio__/graphics/tech.png",
-	icon_size = 256,
-    inventory_order = "f",
-    order = "e"
-  },
-  {
-    type = "item-subgroup",
-    name = "chest-subgroup",
-    group = "test-group",
-    order = "a"
-  },
-  {
-    type = "item-subgroup",
-    name = "liquid-subgroup",
-    group = "test-group",
-    order = "b"
-  },
-  {
-    type = "item-subgroup",
-    name = "signal-subgroup",
-    group = "test-group",
-    order = "c"
-  }
+	{
+		type = "item-group",
+		name = "test-group",
+		icon = "__clusterio__/graphics/tech.png",
+		icon_size = 256,
+		inventory_order = "f",
+		order = "e"
+	},
+	{
+		type = "item-subgroup",
+		name = "chest-subgroup",
+		group = "test-group",
+		order = "a"
+	},
+	{
+		type = "item-subgroup",
+		name = "liquid-subgroup",
+		group = "test-group",
+		order = "b"
+	},
+	{
+		type = "item-subgroup",
+		name = "signal-subgroup",
+		group = "test-group",
+		order = "c"
+	},
+	{
+		type = "item-subgroup",
+		name = "electric-subgroup",
+		group = "test-group",
+		order = "d"
+	}
 })
 --make chests
 -- MakeLogisticEntity(table.deepcopy(data.raw["logistic-container"]["logistic-chest-requester"]), OUTPUT_CHEST_NAME, OUTPUT_CHEST_PICTURE_PATH, { "picture" }, OUTPUT_CHEST_ICON_PATH)
@@ -262,6 +268,75 @@ for k,v in pairs(data.raw.fluid) do
 		}
 	})
 end
+
+--------------------------------------
+--[[Making electric tranfer things]]--
+--------------------------------------
+
+putElectricity = table.deepcopy(data.raw["accumulator"]["accumulator"])
+putElectricity.minable = {mining_time = 4, result = INPUT_ELECTRICITY_NAME}
+putElectricity.name = INPUT_ELECTRICITY_NAME
+putElectricity.energy_source.buffer_capacity = "10GJ" -- 10 seconds storage in case of lag
+putElectricity.energy_source.input_flow_limit  = "1GW"
+putElectricity.energy_source.output_flow_limit = "0kW"
+
+getElectricity = table.deepcopy(data.raw["accumulator"]["accumulator"])
+getElectricity.minable = {mining_time = 4, result = OUTPUT_ELECTRICITY_NAME}
+getElectricity.name = OUTPUT_ELECTRICITY_NAME
+getElectricity.energy_source.buffer_capacity = "10GJ" -- 10 seconds storage in case of lag
+getElectricity.energy_source.input_flow_limit  = "0kW"
+getElectricity.energy_source.output_flow_limit = "1GW"
+
+data:extend({
+	putElectricity,
+	{
+		type = "recipe",
+		name = INPUT_ELECTRICITY_NAME,
+		enabled = true,
+		ingredients =
+		{
+			{"accumulator", 100},
+			{"electronic-circuit", 50}
+		},
+		result = INPUT_ELECTRICITY_NAME,
+		requester_paste_multiplier = 4
+	},
+	{
+		type = "item",
+		name = INPUT_ELECTRICITY_NAME,
+		icon = putElectricity.icon,
+		icon_size = 32,
+		flags = {"goes-to-quickbar"},
+		subgroup = "electric-subgroup",
+		order = "a[items]-b["..INPUT_ELECTRICITY_NAME.."]",
+		place_result = INPUT_ELECTRICITY_NAME,
+		stack_size = 50
+	},
+	getElectricity,
+	{
+		type = "recipe",
+		name = OUTPUT_ELECTRICITY_NAME,
+		enabled = true,
+		ingredients =
+		{
+			{"accumulator", 100},
+			{"electronic-circuit", 50}
+		},
+		result = OUTPUT_ELECTRICITY_NAME,
+		requester_paste_multiplier = 4
+	},
+	{
+		type = "item",
+		name = OUTPUT_ELECTRICITY_NAME,
+		icon = putElectricity.icon,
+		icon_size = 32,
+		flags = {"goes-to-quickbar"},
+		subgroup = "electric-subgroup",
+		order = "a[items]-b["..OUTPUT_ELECTRICITY_NAME.."]",
+		place_result = OUTPUT_ELECTRICITY_NAME,
+		stack_size = 50
+	}
+})
 
 
 -- Virtual signals

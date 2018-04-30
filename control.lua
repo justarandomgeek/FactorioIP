@@ -81,6 +81,10 @@ function AddEntity(entity)
 	elseif entity.name == INV_COMBINATOR_NAME then
 		global.invControls[entity.unit_number] = entity.get_or_create_control_behavior()
 		entity.operable=false
+	elseif entity.name == INPUT_ELECTRICITY_NAME then
+		global.inputElectricity[entity.unit_number] = entity
+	elseif entity.name == OUTPUT_ELECTRICITY_NAME then
+		global.outputElectricity[entity.unit_number] = entity
 	end
 end
 
@@ -102,6 +106,10 @@ function OnKilledEntity(event)
 			global.rxControls[entity.unit_number] = nil
 		elseif entity.name == INV_COMBINATOR_NAME then
 			global.invControls[entity.unit_number] = nil
+		elseif entity.name == INPUT_ELECTRICITY_NAME then
+			global.inputElectricity[entity.unit_number] = nil
+		elseif entity.name == OUTPUT_ELECTRICITY_NAME then
+			global.outputElectricity[entity.unit_number] = nil
 		end
 	end
 end
@@ -145,6 +153,7 @@ script.on_event(defines.events.on_tick, function(event)
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
+		local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
 		if todo == 0 then
 			HandleInputChests()
 		elseif todo == 1 then
@@ -154,12 +163,21 @@ script.on_event(defines.events.on_tick, function(event)
 		elseif todo == 3 then
 			HandleOutputTanks()
 		elseif todo == 4 then
-			ExportInputList()
-		elseif todo == 5 then
-			ExportOutputList()
+			HandleInputElectricity()
+		--importing electricity should be limited because it requests so
+		--much at once. If it wasn't limited then the electricity could
+		--make small burst of requests which requests >10x more than it needs
+		--which could temporarily starve other networks.
+		elseif todo == 5 and timeSinceLastElectricityUpdate >= 60 * 5 then -- only update ever 5 seconds
+			HandleOutputElectricity()
+			global.lastElectricityUpdate = game.tick
 		elseif todo == 6 then
-			ExportFluidFlows()
+			ExportInputList()
 		elseif todo == 7 then
+			ExportOutputList()
+		elseif todo == 8 then
+			ExportFluidFlows()
+		elseif todo == 9 then
 			ExportItemFlows()
 		end
 	end
@@ -213,6 +231,10 @@ function Reset()
 	global.rxControls = {}
 	global.txControls = {}
 	global.invControls = {}
+	
+	global.inputElectricity = {}
+	global.outputElectricity = {}
+	global.lastElectricityUpdate = 0
 
 	AddAllEntitiesOfName(INPUT_CHEST_NAME)
 	AddAllEntitiesOfName(OUTPUT_CHEST_NAME)
@@ -223,6 +245,9 @@ function Reset()
 	AddAllEntitiesOfName(RX_COMBINATOR_NAME)
 	AddAllEntitiesOfName(TX_COMBINATOR_NAME)
 	AddAllEntitiesOfName(INV_COMBINATOR_NAME)
+	
+	AddAllEntitiesOfName(INPUT_ELECTRICITY_NAME)
+	AddAllEntitiesOfName(OUTPUT_ELECTRICITY_NAME)
 end
 
 function HandleInputChests()
@@ -256,7 +281,18 @@ function HandleInputTanks()
 			v.fluidbox[1] = fluid
 		end
 	end
+end
 
+function HandleInputElectricity()
+	for k, entity in pairs(global.inputElectricity) do
+		if entity.valid then
+			local availableEnergy = math.floor(entity.energy)
+			if availableEnergy > 0 then
+				AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
+				entity.energy = entity.energy - availableEnergy
+			end
+		end
+	end
 end
 
 function HandleOutputChests()
@@ -327,6 +363,22 @@ function HandleOutputTanks()
 			end
 
 		v.fluidbox[1] = fluid
+		end
+	end
+end
+
+function HandleOutputElectricity()
+	for k, entity in pairs(global.outputElectricity) do
+		if entity.valid then
+			local missingElectricity = math.floor(entity.electric_buffer_size - entity.energy)
+			if missingElectricity > 0 then
+				local receivedElectricity = RequestItemsFromStorage(ELECTRICITY_ITEM_NAME, missingElectricity)
+				if receivedElectricity > 0 then
+					entity.energy = entity.energy + receivedElectricity
+				else
+					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity)
+				end
+			end
 		end
 	end
 end
