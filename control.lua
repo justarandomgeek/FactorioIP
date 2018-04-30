@@ -584,8 +584,10 @@ remote.add_interface("clusterio",
 	receiveInventory = function(jsoninvdata)
 		global.ticksSinceMasterPinged = 0
 		local invdata = json:decode(jsoninvdata)
+		for name,count in pairs(invdata) do
+			global.invdata[name]=count	
+		end
 		-- invdata = {["iron-plates"]=1234,["copper-plates"]=5678,...}
-		global.invdata = invdata
 		UpdateInvCombinators()
 	end,
 	setWorldID = function(newid)
