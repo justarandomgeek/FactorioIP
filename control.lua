@@ -759,13 +759,6 @@ script.on_event(defines.events.on_gui_elem_changed, function(event)
 		processElemGui(event,"BWfluids")
 		return
 	end
-	if event.element.name == "clusterio-electricity-field" then
-		game.print(event.element.text)
-		local newMax = tonumber(event.element.text)
-		if newMax and newMax >= 0 then
-			global.maxElectricity = newMax
-		end
-	end
 end)
 
 script.on_event(defines.events.on_gui_text_changed, function(event)
