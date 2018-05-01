@@ -150,6 +150,8 @@ script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
 	HandleTXCombinators()
 
+	global.ticksSinceMasterPinged = 0
+	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
@@ -237,6 +239,7 @@ function Reset()
 	global.inputElectricity = {}
 	global.outputElectricity = {}
 	global.lastElectricityUpdate = 0
+	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ
 
 	AddAllEntitiesOfName(INPUT_CHEST_NAME)
 	AddAllEntitiesOfName(OUTPUT_CHEST_NAME)
@@ -286,12 +289,14 @@ function HandleInputTanks()
 end
 
 function HandleInputElectricity()
-	for k, entity in pairs(global.inputElectricity) do
-		if entity.valid then
-			local availableEnergy = math.floor(entity.energy)
-			if availableEnergy > 0 then
-				AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy / ELECTRICITY_RATIO)
-				entity.energy = entity.energy - availableEnergy
+	if global.invdata and global.invdata[ELECTRICITY_ITEM_NAME] and global.invdata[ELECTRICITY_ITEM_NAME] < global.maxElectricity then
+		for k, entity in pairs(global.inputElectricity) do
+			if entity.valid then
+				local availableEnergy = math.floor(entity.energy / ELECTRICITY_RATIO)
+				if availableEnergy > 0 then
+					AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
+					entity.energy = entity.energy - (availableEnergy * ELECTRICITY_RATIO)
+				end
 			end
 		end
 	end
