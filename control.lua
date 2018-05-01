@@ -715,6 +715,11 @@ function toggleMainConfigGui(parent)
 	pane.add{type="label", caption="Chest/fluid bounding box: "..global.config.PlacableArea,name="clusterio-Placing-Bounding-Box-Label"}
 	pane.add{type="slider", name="clusterio-Placing-Bounding-Box",minimum_value=0,maximum_value=800,value=global.config.PlacableArea}
 	
+	--Electricity panel
+	local electricityPane = pane.add{type="frame", name="clusterio-main-config-gui", direction="horizontal"}
+	electricityPane.add{type="label", name="clusterio-electricity-label", caption="Max electricity"}
+	electricityPane.add{type="textfield", name="clusterio-electricity-field", text = global.maxElectricity}
+	
 end
 function processMainConfigGui(event)
 	if event.element.name=="clusterio-Item-WB-list" then
@@ -755,6 +760,25 @@ script.on_event(defines.events.on_gui_elem_changed, function(event)
 	if event.element.parent.name=="fluid-black-white-list" then
 		processElemGui(event,"BWfluids")
 		return
+	end
+	if event.element.name == "clusterio-electricity-field" then
+		game.print(event.element.text)
+		local newMax = tonumber(event.element.text)
+		if newMax and newMax >= 0 then
+			global.maxElectricity = newMax
+		end
+	end
+end)
+
+script.on_event(defines.events.on_gui_text_changed, function(event)
+	if not (event.element and event.element.valid) then return end
+	
+	if event.element.name == "clusterio-electricity-field" then
+		game.print(event.element.text)
+		local newMax = tonumber(event.element.text)
+		if newMax and newMax >= 0 then
+			global.maxElectricity = newMax
+		end
 	end
 end)
 
