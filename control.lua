@@ -149,8 +149,6 @@ end)
 script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
 	HandleTXCombinators()
-
-	global.ticksSinceMasterPinged = 0
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then
