@@ -290,7 +290,7 @@ function HandleInputElectricity()
 		if entity.valid then
 			local availableEnergy = math.floor(entity.energy)
 			if availableEnergy > 0 then
-				AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
+				AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy / ELECTRICITY_RATIO)
 				entity.energy = entity.energy - availableEnergy
 			end
 		end
@@ -376,9 +376,9 @@ function HandleOutputElectricity()
 			if missingElectricity > 0 then
 				local receivedElectricity = RequestItemsFromStorage(ELECTRICITY_ITEM_NAME, missingElectricity)
 				if receivedElectricity > 0 then
-					entity.energy = entity.energy + receivedElectricity
+					entity.energy = entity.energy + (receivedElectricity * ELECTRICITY_RATIO)
 				else
-					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity)
+					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity / ELECTRICITY_RATIO)
 				end
 			end
 		end

@@ -32,6 +32,7 @@ OUTPUT_ELECTRICITY_ICON_PATH = nil
 
 --item name that electricity uses
 ELECTRICITY_ITEM_NAME = "electricity"
+ELECTRICITY_RATIO = 1000000 -- 1.000.000,  1 = 1MJ
 
 MAX_RX_BUFFER_SIZE = 40 -- slightly more than one second
 RX_COMBINATOR_NAME = "get-combinator"
