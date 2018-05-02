@@ -287,14 +287,16 @@ function HandleInputTanks()
 end
 
 function HandleInputElectricity()
-	if global.invdata and global.invdata[ELECTRICITY_ITEM_NAME] and global.invdata[ELECTRICITY_ITEM_NAME] < global.maxElectricity then
-		for k, entity in pairs(global.inputElectricity) do
-			if entity.valid then
-				local availableEnergy = math.floor(entity.energy / ELECTRICITY_RATIO)
-				if availableEnergy > 0 then
-					AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
-					entity.energy = entity.energy - (availableEnergy * ELECTRICITY_RATIO)
-				end
+	--if there is too much energy in the network then stop outputting more
+	if global.invdata and global.invdata[ELECTRICITY_ITEM_NAME] and global.invdata[ELECTRICITY_ITEM_NAME] >= global.maxElectricity then
+		return
+	end
+	for k, entity in pairs(global.inputElectricity) do
+		if entity.valid then
+			local availableEnergy = math.floor(entity.energy / ELECTRICITY_RATIO)
+			if availableEnergy > 0 then
+				AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
+				entity.energy = entity.energy - (availableEnergy * ELECTRICITY_RATIO)
 			end
 		end
 	end
