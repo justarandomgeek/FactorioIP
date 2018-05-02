@@ -295,8 +295,10 @@ data:extend({
 		enabled = true,
 		ingredients =
 		{
-			{"accumulator", 100},
-			{"electronic-circuit", 50}
+			{"accumulator", 2000},
+			{"advanced-circuit", 50},
+			{"substation", 50},
+			{"satellite", 1}
 		},
 		result = INPUT_ELECTRICITY_NAME,
 		requester_paste_multiplier = 4
@@ -319,8 +321,10 @@ data:extend({
 		enabled = true,
 		ingredients =
 		{
-			{"accumulator", 100},
-			{"electronic-circuit", 50}
+			{"accumulator", 2000},
+			{"advanced-circuit", 50},
+			{"substation", 50},
+			{"satellite", 1}
 		},
 		result = OUTPUT_ELECTRICITY_NAME,
 		requester_paste_multiplier = 4
