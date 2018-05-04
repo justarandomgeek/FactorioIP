@@ -783,13 +783,18 @@ end
 
 
 
+
+commands.add_command("ccri","clusterio internal command, receive Inventory",function(event) if game.player then return end local cmd=event.parameter cmd="for name,count in pairs("+cmd+") do global.invdata[name]=count end" loadstring(cmd)() end )
+commands.add_command("ccrm","clusterio internal command, receive Many",function(event) if game.player then return end local cmd=event.parameter cmd="for k,item in pairs("+cmd+") do GiveItemsToStorage(k, item) end" loadstring(cmd)() end )
+
 script.on_event(defines.events.on_player_joined_game,function(event) 
 	if game.players[event.player_index].admin then  
 		makeConfigButton(game.players[event.player_index].gui.top)
 	end
 end)
---script.on_event(defines.events.on_player_died,function(event) 
---	local msg="!shout "..game.players[event.player_index].name.." has been killed"
---	if event.cause~=nil then if event.cause.name~="locomotive" then return end msg=msg.." by "..event.cause.name else msg=msg.."." end
---	game.print( msg)
---end)--game.write_file("alerts.txt","player_died, "..game.players[event.player_index].name.." has killed by "..(event.cause or {name="unknown"}).name,true) end)--
+script.on_event(defines.events.on_player_died,function(event) 
+	--local msg="!shout "..game.players[event.player_index].name.." has been killed"
+	--if event.cause~=nil then if event.cause.name~="locomotive" then return end msg=msg.." by "..event.cause.name else msg=msg.."." end
+	game.write_file("alerts.txt","player_died, "..game.players[event.player_index].name.." has been killed by "..(event.cause or {name="unknown"}).name,true)
+end)
+--script.on_load(function() commands.add_command("ccri","clusterio internal command",function(x) game.print(x.test) end ) end)
