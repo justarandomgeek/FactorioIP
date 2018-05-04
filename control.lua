@@ -217,7 +217,7 @@ end
 function Reset()
 	global.ticksSinceMasterPinged = 601
 
-	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=400} end
+	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=200} end
 	if global.invdata==nil then global.invdata={} end
 	
 	global.outputList = {}
