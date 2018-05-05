@@ -377,13 +377,13 @@ end
 function HandleOutputElectricity()
 	for k, entity in pairs(global.outputElectricity) do
 		if entity.valid then
-			local missingElectricity = math.floor(entity.electric_buffer_size - entity.energy)
+			local missingElectricity = math.floor((entity.electric_buffer_size - entity.energy) / ELECTRICITY_RATIO)
 			if missingElectricity > 0 then
 				local receivedElectricity = RequestItemsFromStorage(ELECTRICITY_ITEM_NAME, missingElectricity)
 				if receivedElectricity > 0 then
 					entity.energy = entity.energy + (receivedElectricity * ELECTRICITY_RATIO)
 				else
-					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity / ELECTRICITY_RATIO)
+					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity)
 				end
 			end
 		end
