@@ -347,7 +347,7 @@ function HandleOutputTanks()
 		--The type of fluid the tank should output
 		--is determined by the recipe set in the  entity.
 		--If no recipe is set then it shouldn't output anything
-		if v.valid and v.get_recipe() ~= nil then
+		if v.valid and not v.to_be_deconstructed(v.force) and v.get_recipe() ~= nil then
 			--Get name of the fluid to output
 			local fluidName = v.get_recipe().products[1].name
 			--Some fluids may be illegal. If that's the case then don't process them
@@ -372,7 +372,7 @@ function HandleOutputTanks()
 		end
 	end
 	
-	EvenlyDistributeItems(fluidRequests, false, function(request, fluidName, evenShareOfFluid)
+	EvenlyDistributeItems(fluidRequests, false, function(request, _, evenShareOfFluid)
 		request.fluid.amount = request.fluid.amount + evenShareOfFluid
 		if request.fluid.name == "steam" then
 			request.fluid.temperature = 165
@@ -383,19 +383,20 @@ function HandleOutputTanks()
 end
 
 function HandleOutputElectricity()
+	local electricityRequests = {}
 	for k, entity in pairs(global.outputElectricity) do
-		if entity.valid then
+		if entity.valid and not entity.to_be_deconstructed(entity.force) then
 			local missingElectricity = math.floor((entity.electric_buffer_size - entity.energy) / ELECTRICITY_RATIO)
 			if missingElectricity > 0 then
-				local receivedElectricity = RequestItemsFromStorage(ELECTRICITY_ITEM_NAME, missingElectricity)
-				if receivedElectricity > 0 then
-					entity.energy = entity.energy + (receivedElectricity * ELECTRICITY_RATIO)
-				else
-					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity)
-				end
+				AddRequestToTable(electricityRequests, ELECTRICITY_ITEM_NAME, missingElectricity, entity)
 			end
 		end
 	end
+	
+	EvenlyDistributeItems(electricityRequests, false, function(request, _, evenShare)
+		request.storage.energy = request.storage.energy + (evenShare * ELECTRICITY_RATIO)
+		return evenShare
+	end)
 end
 
 function AddRequestToTable(requests, itemName, missingAmount, storage)
