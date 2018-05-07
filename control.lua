@@ -303,39 +303,109 @@ function HandleInputElectricity()
 end
 
 function HandleOutputChests()
-	local simpleItemStack = {}
+	--[[
+	itemRequesterChests = 
+	{
+		itemName = 
+		{
+			requestedAmount,
+			chests = 
+			{
+				{
+					chestInv,
+					missingItems
+				}
+			}
+		}
+	}
+	]]--
+	local itemRequesterChests = {}
 	for k, v in pairs(global.outputChests) do
+		--Don't insert items into the chest if it's being deconstructed
+		--as that just leads to unnecessary bot work
 		if v.valid and not v.to_be_deconstructed(v.force) then
 			--get the inventory here once for faster execution
 			local chestInventory = v.get_inventory(defines.inventory.chest)
+			
+			--Go though each request slot
 			for i = 1, v.prototype.filter_count do
-				--the item the chest wants
 				local requestItem = v.get_request_slot(i)
-				if requestItem ~= nil then
-					if isItemLegal(requestItem.name) then
-						local itemsInChest = chestInventory.get_item_count(requestItem.name)
-						--if there isn't enough items in the chest
-						if itemsInChest < requestItem.count then
-							local additionalItemRequiredCount = requestItem.count - itemsInChest
-							local itemCountAllowedToInsert = RequestItemsFromStorage(requestItem.name, additionalItemRequiredCount)
-							if itemCountAllowedToInsert > 0 then
-								simpleItemStack.name = requestItem.name
-								simpleItemStack.count = itemCountAllowedToInsert
-								--insert the missing items
-								local insertedItemsCount = chestInventory.insert(simpleItemStack)
-								local itemsNotInsertedCount = itemCountAllowedToInsert - insertedItemsCount
-
-								if itemsNotInsertedCount > 0 then
-									GiveItemsToStorage(requestItem.name, itemsNotInsertedCount)
-								end
-							else
-								local missingItems = additionalItemRequiredCount - itemCountAllowedToInsert
-								AddItemToOutputList(requestItem.name, missingItems)
-							end
+				
+				--Some request slots may be empty and some items are not allowed
+				--to be imported
+				if requestItem ~= nil and isItemLegal(requestItem.name) then
+					local itemsInChest = chestInventory.get_item_count(requestItem.name)
+					
+					--If there isn't enough items in the chest
+					if itemsInChest < requestItem.count then
+						local missingItems = requestItem.count - itemsInChest
+						
+						--If this is the first entry for this item type then
+						--create a table for this item type first
+						if itemRequesterChests[requestItem.name] == nil then
+							itemRequesterChests[requestItem.name] = 
+							{
+								requestedAmount = 0,
+								chests = {}
+							}
 						end
+						
+						local itemEntry = itemRequesterChests[requestItem.name]
+						
+						--Add missing item to the count and add this chest inv to the list
+						itemEntry.requestedAmount = itemEntry.requestedAmount + missingItems
+						itemEntry.chests[#itemEntry.chests + 1] = 
+						{
+							chestInv = chestInventory,
+							missingItems = missingItems
+						}
 					end
 				end
 			end
+		end
+	end
+	
+	local simpleItemStack = {}
+	for itemName, requestInfo in pairs(itemRequesterChests) do
+		--Take the required item count from storage or how much storage has
+		local itemCount = RequestItemsFromStorage(itemName, requestInfo.requestedAmount)
+		
+		--If storage had some of the required item then begin distributing it evenly
+		--in all the chests
+		if itemCount > 0 then
+			--To be able to distribute it evenly the chests need to be sorted in order of how
+			--much they are missing, so the chest with the least missing of the item will be first.
+			--If this sin't done then there could be items leftover after they have been distributed
+			--even though they could all have been distributed if they had been distributed in order.
+			table.sort(requestInfo.chests, function(left, right)
+				return left.missingItems < right.missingItems
+			end)
+			
+			for i = 1, #requestInfo.chests do
+				--Each chest takes out ots share from itemCount so the division
+				--needs to be less for each run of this for loop. The ceil is there
+				--so fractions can be shared. Instead the first chests will just get
+				--One more than the last chests.
+				local evenShare = math.ceil(itemCount / (#requestInfo.chests - (i - 1)))
+				
+				--The chest may have requested less than the evenShare
+				local chestHold = math.min(evenShare, requestInfo.chests[i].missingItems)
+				
+				simpleItemStack.name = itemName
+				simpleItemStack.count = chestHold
+			
+				--Insert the missing items and subtract the inserted items from the itemcount
+				local insertedItemsCount = requestInfo.chests[i].chestInv.insert(simpleItemStack)
+				itemCount = itemCount - insertedItemsCount
+			end
+			
+			--Give remaining items back to storage
+			if itemCount > 0 then
+				GiveItemsToStorage(itemName, itemCount)
+			end
+		else
+			--There is no items of this type so request them
+			AddItemToOutputList(itemName, requestInfo.requestedAmount)
 		end
 	end
 end
