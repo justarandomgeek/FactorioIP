@@ -303,88 +303,169 @@ function HandleInputElectricity()
 end
 
 function HandleOutputChests()
-	local simpleItemStack = {}
+	local itemRequests = {}
 	for k, v in pairs(global.outputChests) do
+		--Don't insert items into the chest if it's being deconstructed
+		--as that just leads to unnecessary bot work
 		if v.valid and not v.to_be_deconstructed(v.force) then
 			--get the inventory here once for faster execution
 			local chestInventory = v.get_inventory(defines.inventory.chest)
-			for i = 1, 12 do
-				--the item the chest wants
+			
+			--Go though each request slot
+			for i = 1, v.prototype.filter_count do
 				local requestItem = v.get_request_slot(i)
-				if requestItem ~= nil then
-					if isItemLegal(requestItem.name) then
-						local itemsInChest = chestInventory.get_item_count(requestItem.name)
-						--if there isn't enough items in the chest
-						if itemsInChest < requestItem.count then
-							local additionalItemRequiredCount = requestItem.count - itemsInChest
-							local itemCountAllowedToInsert = RequestItemsFromStorage(requestItem.name, additionalItemRequiredCount)
-							if itemCountAllowedToInsert > 0 then
-								simpleItemStack.name = requestItem.name
-								simpleItemStack.count = itemCountAllowedToInsert
-								--insert the missing items
-								local insertedItemsCount = chestInventory.insert(simpleItemStack)
-								local itemsNotInsertedCount = itemCountAllowedToInsert - insertedItemsCount
-
-								if itemsNotInsertedCount > 0 then
-									GiveItemsToStorage(requestItem.name, itemsNotInsertedCount)
-								end
-							else
-								local missingItems = additionalItemRequiredCount - itemCountAllowedToInsert
-								AddItemToOutputList(requestItem.name, missingItems)
-							end
-						end
+				
+				--Some request slots may be empty and some items are not allowed
+				--to be imported
+				if requestItem ~= nil and isItemLegal(requestItem.name) then
+					local itemsInChest = chestInventory.get_item_count(requestItem.name)
+					
+					--If there isn't enough items in the chest
+					if itemsInChest < requestItem.count then
+						local missingAmount = requestItem.count - itemsInChest
+						AddRequestToTable(itemRequests, requestItem.name, missingAmount, chestInventory)
 					end
 				end
 			end
 		end
 	end
+	
+	EvenlyDistributeItems(itemRequests, true, function(request, itemName, evenShareOfItems)
+		local itemsToInsert = 
+		{
+			name = itemName, 
+			count = evenShareOfItems
+		}
+		
+		return request.storage.insert(itemsToInsert)
+	end)
 end
 
 function HandleOutputTanks()
-	 for k,v in pairs(global.outputTanks) do
-		--.recipe.products[1].name
-		if v.get_recipe() ~= nil then
+	local fluidRequests = {}
+	for k, v in pairs(global.outputTanks) do
+		--The type of fluid the tank should output
+		--is determined by the recipe set in the  entity.
+		--If no recipe is set then it shouldn't output anything
+		if v.valid and not v.to_be_deconstructed(v.force) and v.get_recipe() ~= nil then
+			--Get name of the fluid to output
 			local fluidName = v.get_recipe().products[1].name
+			--Some fluids may be illegal. If that's the case then don't process them
+			if isFluidLegal(fluidName) then
+				--Either get the current fluid or reset it to the requested fluid
+				local fluid = v.fluidbox[1] or {name = fluidName, amount = 0}
 
-			--either get the fluid or reset it to the requested fluid
-			local fluid = v.fluidbox[1] or {name = fluidName, amount = 0}
-			if fluid.name ~= fluidName then
-				fluid = {name = fluidName, amount = 0}
-			end
+				--If the current fluid isn't the correct fluid
+				--then remove that fluid
+				if fluid.name ~= fluidName then
+					fluid = {name = fluidName, amount = 0}
+				end
 
-			--if any fluid is missing then request the fluid
-			--from store and give either what it's missing or
-			--the rest of the liquid in the system
-			local missingFluid = math.max(math.ceil(MAX_FLUID_AMOUNT - fluid.amount), 0)
-			if missingFluid > 0 and isFluidLegal(fluidName)then
-				local fluidToInsert = RequestItemsFromStorage(fluidName, missingFluid)
-				if fluidToInsert > 0 then
-					fluid.amount = fluid.amount + fluidToInsert
-					if fluid.name == "steam" then
-						fluid.temperature = 165
-					end
-				else
-					local fluidToRequestAmount = missingFluid - fluidToInsert
-					AddItemToOutputList(fluid.name, fluidToRequestAmount)
+				local missingFluid = math.max(math.ceil(MAX_FLUID_AMOUNT - fluid.amount), 0)
+				--If the entity is missing fluid than add a request for fluid
+				if missingFluid > 0 then
+					local entry = AddRequestToTable(fluidRequests, fluidName, missingFluid, v)
+					--Add fluid to the request so it doesn't have to be created again
+					entry.fluid = fluid
 				end
 			end
-
-		v.fluidbox[1] = fluid
 		end
 	end
+	
+	EvenlyDistributeItems(fluidRequests, false, function(request, _, evenShareOfFluid)
+		request.fluid.amount = request.fluid.amount + evenShareOfFluid
+		if request.fluid.name == "steam" then
+			request.fluid.temperature = 165
+		end
+		request.storage.fluidbox[1] = request.fluid
+		return evenShareOfFluid
+	end)
 end
 
 function HandleOutputElectricity()
+	local electricityRequests = {}
 	for k, entity in pairs(global.outputElectricity) do
-		if entity.valid then
+		if entity.valid and not entity.to_be_deconstructed(entity.force) then
 			local missingElectricity = math.floor((entity.electric_buffer_size - entity.energy) / ELECTRICITY_RATIO)
 			if missingElectricity > 0 then
-				local receivedElectricity = RequestItemsFromStorage(ELECTRICITY_ITEM_NAME, missingElectricity)
-				if receivedElectricity > 0 then
-					entity.energy = entity.energy + (receivedElectricity * ELECTRICITY_RATIO)
-				else
-					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity)
-				end
+				AddRequestToTable(electricityRequests, ELECTRICITY_ITEM_NAME, missingElectricity, entity)
+			end
+		end
+	end
+	
+	EvenlyDistributeItems(electricityRequests, false, function(request, _, evenShare)
+		request.storage.energy = request.storage.energy + (evenShare * ELECTRICITY_RATIO)
+		return evenShare
+	end)
+end
+
+function AddRequestToTable(requests, itemName, missingAmount, storage)
+	--If this is the first entry for this item type then
+	--create a table for this item type first
+	if requests[itemName] == nil then
+		requests[itemName] = 
+		{
+			requestedAmount = 0,
+			requesters = {}
+		}
+	end
+	
+	local itemEntry = requests[itemName]
+	
+	--Add missing item to the count and add this chest inv to the list
+	itemEntry.requestedAmount = itemEntry.requestedAmount + missingAmount
+	itemEntry.requesters[#itemEntry.requesters + 1] = 
+	{
+		storage = storage,
+		missingAmount = missingAmount
+	}
+	
+	return itemEntry.requesters[#itemEntry.requesters]
+end
+
+function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
+	for itemName, requestInfo in pairs(requests) do
+		--Take the required item count from storage or how much storage has
+		local itemCount = RequestItemsFromStorage(itemName, requestInfo.requestedAmount)
+		
+		if itemCount < requestInfo.requestedAmount then
+			--Missing items items of this type so request them
+			local missingItems = requestInfo.requestedAmount - itemCount
+			AddItemToOutputList(itemName, missingItems)
+		end
+		
+		--If storage had some of the required item then begin distributing it evenly
+		--in all the requesters
+		if itemCount > 0 then
+			if shouldSort then
+				--To be able to distribute it evenly, the requesters need to be sorted in order of how
+				--much they are missing, so the requester with the least missing of the item will be first.
+				--If this isn't done then there could be items leftover after they have been distributed
+				--even though they could all have been distributed if they had been distributed in order.
+				table.sort(requestInfo.requesters, function(left, right)
+					return left.missingAmount < right.missingAmount
+				end)
+			end
+			
+			for i = 1, #requestInfo.requesters do
+				--Each requester takes out its share from itemCount so the division
+				--needs to be less for each run of this for loop. The ceil is there
+				--so fractions can be shared. Instead the first requester will just get
+				--One more than the last requester.
+				local evenShare = math.ceil(itemCount / (#requestInfo.requesters - (i - 1)))
+				
+				--The requester may have requested less than the evenShare.
+				--It's not allowed to overfill so takes less if less was requested.
+				local chestHold = math.min(evenShare, requestInfo.requesters[i].missingAmount)
+			
+				--Insert the missing items into the entity and subtract the inserted items from the itemCount
+				local insertedItemsCount = functionToAddItems(requestInfo.requesters[i], itemName, chestHold)
+				itemCount = itemCount - insertedItemsCount
+			end
+			
+			--Give remaining items back to storage
+			if itemCount > 0 then
+				GiveItemsToStorage(itemName, itemCount)
 			end
 		end
 	end
