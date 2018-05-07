@@ -428,6 +428,12 @@ function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
 		--Take the required item count from storage or how much storage has
 		local itemCount = RequestItemsFromStorage(itemName, requestInfo.requestedAmount)
 		
+		if itemCount < requestInfo.requestedAmount then
+			--Missing items items of this type so request them
+			local missingItems = requestInfo.requestedAmount - itemCount
+			AddItemToOutputList(itemName, missingItems)
+		end
+		
 		--If storage had some of the required item then begin distributing it evenly
 		--in all the requesters
 		if itemCount > 0 then
@@ -461,9 +467,6 @@ function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
 			if itemCount > 0 then
 				GiveItemsToStorage(itemName, itemCount)
 			end
-		else
-			--There is no items of this type so request them
-			AddItemToOutputList(itemName, requestInfo.requestedAmount)
 		end
 	end
 end
