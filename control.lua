@@ -457,10 +457,13 @@ function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
 				--The requester may have requested less than the evenShare.
 				--It's not allowed to overfill so takes less if less was requested.
 				local chestHold = math.min(evenShare, requestInfo.requesters[i].missingAmount)
-			
-				--Insert the missing items into the entity and subtract the inserted items from the itemCount
-				local insertedItemsCount = functionToAddItems(requestInfo.requesters[i], itemName, chestHold)
-				itemCount = itemCount - insertedItemsCount
+				
+				--No need to insert 0 of something
+				if chestHold > 0 then
+					--Insert the missing items into the entity and subtract the inserted items from the itemCount
+					local insertedItemsCount = functionToAddItems(requestInfo.requesters[i], itemName, chestHold)
+					itemCount = itemCount - insertedItemsCount
+				end
 			end
 			
 			--Give remaining items back to storage
