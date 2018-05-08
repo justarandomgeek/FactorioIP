@@ -62,7 +62,11 @@ end
 function AddEntity(entity)
 	if entity.name == INPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.inputChests[entity.unit_number] = entity
+		global.inputChests[entity.unit_number] = 
+		{
+			entity = entity,
+			inv = entity.get_inventory(defines.inventory.chest)
+		}
 	elseif entity.name == OUTPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
 		global.outputChests[entity.unit_number] = 
@@ -156,7 +160,7 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	HandleOutputChests()
+	HandleInputChests()
 	--[[
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
@@ -263,15 +267,16 @@ end
 
 function HandleInputChests()
 	for k, v in pairs(global.inputChests) do
-		if v.valid then
+		local entity = v.entity
+		local inventory = v.inv
+		if entity.valid then
 			--get the content of the chest
-			local items = v.get_inventory(defines.inventory.chest).get_contents()
-			local inventory=v.get_inventory(defines.inventory.chest)
+			local items = inventory.get_contents()
 			--write everything to the file
 			for itemName, itemCount in pairs(items) do
 				if isItemLegal(itemName) then
 					AddItemToInputList(itemName, itemCount)
-					inventory.remove({name=itemName,count=itemCount})
+					inventory.remove({name = itemName, count = itemCount})
 				end
 			end
 		end
