@@ -168,7 +168,7 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	HandleOutputTanks()
+	HandleInputElectricity()
 	--[[
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
@@ -316,10 +316,11 @@ function HandleInputElectricity()
 	end
 	for k, entity in pairs(global.inputElectricity) do
 		if entity.valid then
-			local availableEnergy = math.floor(entity.energy / ELECTRICITY_RATIO)
+			local energy = entity.energy
+			local availableEnergy = math.floor(energy / ELECTRICITY_RATIO)
 			if availableEnergy > 0 then
 				AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
-				entity.energy = entity.energy - (availableEnergy * ELECTRICITY_RATIO)
+				entity.energy = energy - (availableEnergy * ELECTRICITY_RATIO)
 			end
 		end
 	end
