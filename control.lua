@@ -65,7 +65,12 @@ function AddEntity(entity)
 		global.inputChests[entity.unit_number] = entity
 	elseif entity.name == OUTPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.outputChests[entity.unit_number] = entity
+		global.outputChests[entity.unit_number] = 
+		{ 
+			entity = entity, 
+			inv = entity.get_inventory(defines.inventory.chest),
+			filterCount = entity.prototype.filter_count
+		}
 	elseif entity.name == INPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
 		global.inputTanks[entity.unit_number] = entity
@@ -151,6 +156,8 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
+	HandleOutputChests()
+	--[[
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
 		local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
@@ -183,6 +190,7 @@ script.on_event(defines.events.on_tick, function(event)
 			ExportItemFlows()
 		end
 	end
+	]]--
 
 	-- RX Combinators are set and then cleared on sequential ticks to create pulses
 	UpdateRXCombinators()
@@ -305,15 +313,15 @@ end
 function HandleOutputChests()
 	local itemRequests = {}
 	for k, v in pairs(global.outputChests) do
+		local entity = v.entity
+		local chestInventory = v.inv
+		local filterCount = v.filterCount
 		--Don't insert items into the chest if it's being deconstructed
 		--as that just leads to unnecessary bot work
-		if v.valid and not v.to_be_deconstructed(v.force) then
-			--get the inventory here once for faster execution
-			local chestInventory = v.get_inventory(defines.inventory.chest)
-			
+		if entity.valid and not entity.to_be_deconstructed(entity.force) then
 			--Go though each request slot
-			for i = 1, v.prototype.filter_count do
-				local requestItem = v.get_request_slot(i)
+			for i = 1, filterCount do
+				local requestItem = entity.get_request_slot(i)
 				
 				--Some request slots may be empty and some items are not allowed
 				--to be imported
