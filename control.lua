@@ -101,7 +101,11 @@ function AddEntity(entity)
 	elseif entity.name == INPUT_ELECTRICITY_NAME then
 		global.inputElectricity[entity.unit_number] = entity
 	elseif entity.name == OUTPUT_ELECTRICITY_NAME then
-		global.outputElectricity[entity.unit_number] = entity
+		global.outputElectricity[entity.unit_number] = 
+		{
+			entity = entity,
+			bufferSize = entity.electric_buffer_size
+		}
 	end
 end
 
@@ -168,7 +172,7 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	HandleInputElectricity()
+	HandleOutputElectricity()
 	--[[
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
@@ -412,17 +416,21 @@ end
 
 function HandleOutputElectricity()
 	local electricityRequests = {}
-	for k, entity in pairs(global.outputElectricity) do
-		if entity.valid and not entity.to_be_deconstructed(entity.force) then
-			local missingElectricity = math.floor((entity.electric_buffer_size - entity.energy) / ELECTRICITY_RATIO)
+	for k, v in pairs(global.outputElectricity) do
+		local entity = v.entity
+		local bufferSize = v.bufferSize
+		if entity.valid then
+			local energy = entity.energy
+			local missingElectricity = math.floor((bufferSize - energy) / ELECTRICITY_RATIO)
 			if missingElectricity > 0 then
-				AddRequestToTable(electricityRequests, ELECTRICITY_ITEM_NAME, missingElectricity, entity)
+				local entry = AddRequestToTable(electricityRequests, ELECTRICITY_ITEM_NAME, missingElectricity, entity)
+				entry.energy = energy
 			end
 		end
 	end
 	
 	EvenlyDistributeItems(electricityRequests, false, function(request, _, evenShare)
-		request.storage.energy = request.storage.energy + (evenShare * ELECTRICITY_RATIO)
+		request.storage.energy = request.energy + (evenShare * ELECTRICITY_RATIO)
 		return evenShare
 	end)
 end
