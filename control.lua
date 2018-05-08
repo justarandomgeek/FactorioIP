@@ -84,7 +84,11 @@ function AddEntity(entity)
 		}
 	elseif entity.name == OUTPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.outputTanks[entity.unit_number] = entity
+		global.outputTanks[entity.unit_number] = 
+		{
+			entity = entity,
+			fluidbox = entity.fluidbox
+		}
 		entity.active = false
 	elseif entity.name == TX_COMBINATOR_NAME then
 		global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
@@ -164,7 +168,7 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	HandleInputTanks()
+	HandleOutputTanks()
 	--[[
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
@@ -363,16 +367,19 @@ end
 function HandleOutputTanks()
 	local fluidRequests = {}
 	for k, v in pairs(global.outputTanks) do
+		local entity = v.entity
+		local fluidbox = v.fluidbox
 		--The type of fluid the tank should output
 		--is determined by the recipe set in the  entity.
 		--If no recipe is set then it shouldn't output anything
-		if v.valid and not v.to_be_deconstructed(v.force) and v.get_recipe() ~= nil then
+		local recipe = entity.get_recipe()
+		if entity.valid and recipe ~= nil then
 			--Get name of the fluid to output
-			local fluidName = v.get_recipe().products[1].name
+			local fluidName = recipe.products[1].name
 			--Some fluids may be illegal. If that's the case then don't process them
 			if isFluidLegal(fluidName) then
 				--Either get the current fluid or reset it to the requested fluid
-				local fluid = v.fluidbox[1] or {name = fluidName, amount = 0}
+				local fluid = fluidbox[1] or {name = fluidName, amount = 0}
 
 				--If the current fluid isn't the correct fluid
 				--then remove that fluid
@@ -386,6 +393,7 @@ function HandleOutputTanks()
 					local entry = AddRequestToTable(fluidRequests, fluidName, missingFluid, v)
 					--Add fluid to the request so it doesn't have to be created again
 					entry.fluid = fluid
+					entry.fluidbox = fluidbox
 				end
 			end
 		end
@@ -396,7 +404,7 @@ function HandleOutputTanks()
 		if request.fluid.name == "steam" then
 			request.fluid.temperature = 165
 		end
-		request.storage.fluidbox[1] = request.fluid
+		request.fluidbox[1] = request.fluid
 		return evenShareOfFluid
 	end)
 end
