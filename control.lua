@@ -77,7 +77,11 @@ function AddEntity(entity)
 		}
 	elseif entity.name == INPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.inputTanks[entity.unit_number] = entity
+		global.inputTanks[entity.unit_number] = 
+		{
+			entity = entity,
+			fluidbox = entity.fluidbox
+		}
 	elseif entity.name == OUTPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
 		global.outputTanks[entity.unit_number] = entity
@@ -160,7 +164,7 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	HandleInputChests()
+	HandleInputTanks()
 	--[[
 	if global.ticksSinceMasterPinged < 300 then
 		local todo = game.tick % UPDATE_RATE
@@ -285,16 +289,18 @@ end
 
 function HandleInputTanks()
 	for k, v in pairs(global.inputTanks) do
-		if v.valid then
+		local entity  = v.entity
+		local fluidbox = v.fluidbox
+		if entity.valid then
 			--get the content of the chest
-			local fluid = v.fluidbox[1]
+			local fluid = fluidbox[1]
 			if fluid ~= nil and math.floor(fluid.amount) > 0 then
 				if isFluidLegal(fluid.name) then
 					AddItemToInputList(fluid.name, math.floor(fluid.amount))
 					fluid.amount = fluid.amount - math.floor(fluid.amount)
 				end
 			end
-			v.fluidbox[1] = fluid
+			fluidbox[1] = fluid
 		end
 	end
 end
