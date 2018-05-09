@@ -434,6 +434,11 @@ function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
 			AddItemToOutputList(itemName, missingItems)
 		end
 		
+		--If there isn't enough items to fill all the requests, then the  requests
+		--has to be scaled down in proportion to how much that is missing so all
+		--requests will be filled equally much
+		local itemsToMissingItemsRatio = itemCount / requestInfo.requestedAmount
+		
 		--If storage had some of the required item then begin distributing it evenly
 		--in all the requesters
 		if itemCount > 0 then
@@ -448,15 +453,7 @@ function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
 			end
 			
 			for i = 1, #requestInfo.requesters do
-				--Each requester takes out its share from itemCount so the division
-				--needs to be less for each run of this for loop. The ceil is there
-				--so fractions can be shared. Instead the first requester will just get
-				--One more than the last requester.
-				local evenShare = math.ceil(itemCount / (#requestInfo.requesters - (i - 1)))
-				
-				--The requester may have requested less than the evenShare.
-				--It's not allowed to overfill so takes less if less was requested.
-				local chestHold = math.min(evenShare, requestInfo.requesters[i].missingAmount)
+				local chestHold = math.ceil(requestInfo.requesters[i].missingAmount * itemsToMissingItemsRatio)
 				
 				--No need to insert 0 of something
 				if chestHold > 0 then
