@@ -1,6 +1,9 @@
 require("config")
 local json = require("json")
 
+------------------------------------------------------------
+--[[Method that handle creation and deletion of entities]]--
+------------------------------------------------------------ 
 function OnBuiltEntity(event)
 	local entity = event.created_entity
 	if not (entity and entity.valid) then return end
@@ -47,9 +50,13 @@ function OnBuiltEntity(event)
 	end
 end
 
-function AddAllEntitiesOfName(name)
+function AddAllEntitiesOfNames(names)
+	local filters = {}
+	for name in names do
+		filters[#filters + 1] = {name = name}
+	end
 	for k, surface in pairs(game.surfaces) do
-		AddEntities(surface.find_entities_filtered({["name"] = name}))
+		AddEntities(surface.find_entities_filtered(filters))
 	end
 end
 
@@ -135,28 +142,38 @@ function OnKilledEntity(event)
 	end
 end
 
---[[ Thing Creation Events ]]--
+
+-----------------------------
+--[[Thing creation events]]--
+----------------------------- 
 script.on_event(defines.events.on_built_entity, function(event)
 	OnBuiltEntity(event)
 end)
+
 script.on_event(defines.events.on_robot_built_entity, function(event)
 	OnBuiltEntity(event)
 end)
 
 
-
---[[ Thing Killing Events ]]--
+----------------------------
+--[[Thing killing events]]--
+---------------------------- 
 script.on_event(defines.events.on_entity_died, function(event)
 	OnKilledEntity(event)
 end)
+
 script.on_event(defines.events.on_robot_pre_mined, function(event)
 	OnKilledEntity(event)
 end)
+
 script.on_event(defines.events.on_pre_player_mined_item, function(event)
 	OnKilledEntity(event)
 end)
 
 
+------------------------------
+--[[Thing resetting events]]--
+------------------------------ 
 script.on_init(function()
 	Reset()
 end)
@@ -166,6 +183,56 @@ script.on_configuration_changed(function(data)
 		Reset()
 	end
 end)
+
+function Reset()
+	global.ticksSinceMasterPinged = 601
+
+	if global.config == nil then 
+		global.config = 
+		{
+			BWitems = {},
+			item_is_whitelist = false,
+			BWfluids = {},
+			fluid_is_whitelist = false,
+			PlacableArea = 200
+		}
+	end
+	if global.invdata == nil then 
+		global.invdata = {} 
+	end
+	
+	global.outputList = {}
+	global.inputList = {}
+	global.itemStorage = {}
+
+	global.inputChests = {}
+	global.outputChests = {}
+
+	global.inputTanks = {}
+	global.outputTanks = {}
+
+	global.rxControls = {}
+	global.txControls = {}
+	global.invControls = {}
+	
+	global.inputElectricity = {}
+	global.outputElectricity = {}
+	global.lastElectricityUpdate = 0
+	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ assuming a ratio of 1.000.000
+
+	AddAllEntitiesOfNames(
+	{
+		INPUT_CHEST_NAME,
+		OUTPUT_CHEST_NAME,
+		INPUT_TANK_NAME,
+		OUTPUT_TANK_NAME,
+		RX_COMBINATOR_NAME,
+		TX_COMBINATOR_NAME,
+		INV_COMBINATOR_NAME,
+		INPUT_ELECTRICITY_NAME,
+		OUTPUT_ELECTRICITY_NAME
+	})
+end
 
 script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
@@ -212,71 +279,10 @@ script.on_event(defines.events.on_tick, function(event)
 	UpdateRXCombinators()
 end)
 
-function ExportItemFlows()
-	local flowreport = {type="item",flows={}}
 
-	for _,force in pairs(game.forces) do
-		flowreport.flows[force.name] = {
-			input_counts = force.item_production_statistics.input_counts,
-			output_counts = force.item_production_statistics.output_counts,
-		}
-	end
-
-	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
-end
-
-function ExportFluidFlows()
-	local flowreport = {type="fluid",flows={}}
-
-	for _,force in pairs(game.forces) do
-		flowreport.flows[force.name] = {
-			input_counts = force.fluid_production_statistics.input_counts,
-			output_counts = force.fluid_production_statistics.output_counts,
-		}
-	end
-
-	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
-end
-
-function Reset()
-	global.ticksSinceMasterPinged = 601
-
-	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=200} end
-	if global.invdata==nil then global.invdata={} end
-	
-	global.outputList = {}
-	global.inputList = {}
-	global.itemStorage = {}
-
-	global.inputChests = {}
-	global.outputChests = {}
-
-	global.inputTanks = {}
-	global.outputTanks = {}
-
-	global.rxControls = {}
-	global.txControls = {}
-	global.invControls = {}
-	
-	global.inputElectricity = {}
-	global.outputElectricity = {}
-	global.lastElectricityUpdate = 0
-	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ
-
-	AddAllEntitiesOfName(INPUT_CHEST_NAME)
-	AddAllEntitiesOfName(OUTPUT_CHEST_NAME)
-
-	AddAllEntitiesOfName(INPUT_TANK_NAME)
-	AddAllEntitiesOfName(OUTPUT_TANK_NAME)
-
-	AddAllEntitiesOfName(RX_COMBINATOR_NAME)
-	AddAllEntitiesOfName(TX_COMBINATOR_NAME)
-	AddAllEntitiesOfName(INV_COMBINATOR_NAME)
-	
-	AddAllEntitiesOfName(INPUT_ELECTRICITY_NAME)
-	AddAllEntitiesOfName(OUTPUT_ELECTRICITY_NAME)
-end
-
+----------------------------------------
+--[[Getter and setter update methods]]--
+---------------------------------------- 
 function HandleInputChests()
 	for k, v in pairs(global.inputChests) do
 		local entity = v.entity
@@ -508,16 +514,9 @@ function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
 end
 
 
-function AddItemToInputList(itemName, itemCount)
-	global.inputList[itemName] = (global.inputList[itemName] or 0) + itemCount
-end
-
-function AddItemToOutputList(itemName, itemCount)
-	global.outputList[itemName] = (global.outputList[itemName] or 0) + itemCount
-end
-
-
-
+-----------------------------------
+--[[Methods that write to files]]--
+----------------------------------- 
 function ExportInputList()
 	local exportStrings = {}
 	for k,v in pairs(global.inputList) do
@@ -548,31 +547,36 @@ function ExportOutputList()
 	end
 end
 
+function ExportItemFlows()
+	local flowreport = {type="item",flows={}}
 
-function RequestItemsFromStorage(itemName, itemCount)
-	--if result is nil then there is no items in storage
-	--which means that no items can be given
-	if global.itemStorage[itemName] == nil then
-		return 0
+	for _,force in pairs(game.forces) do
+		flowreport.flows[force.name] = {
+			input_counts = force.item_production_statistics.input_counts,
+			output_counts = force.item_production_statistics.output_counts,
+		}
 	end
-	--if the number of items in storage is lower than the number of items
-	--requested then take the number of items there are left otherwise take the requested amount
-	local itemsTakenFromStorage = math.min(global.itemStorage[itemName], itemCount)
-	global.itemStorage[itemName] = global.itemStorage[itemName] - itemsTakenFromStorage
 
-	return itemsTakenFromStorage
+	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
 end
 
-function GiveItemsToStorage(itemName, itemCount)
-	--if this is called for the first time for an item then the result
-	--is nil. if that's the case then set the result to 0 so it can
-	--be used in arithmetic operations
-	global.itemStorage[itemName] = global.itemStorage[itemName] or 0
-	global.itemStorage[itemName] = global.itemStorage[itemName] + itemCount
+function ExportFluidFlows()
+	local flowreport = {type="fluid",flows={}}
+
+	for _,force in pairs(game.forces) do
+		flowreport.flows[force.name] = {
+			input_counts = force.fluid_production_statistics.input_counts,
+			output_counts = force.fluid_production_statistics.output_counts,
+		}
+	end
+
+	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
 end
 
 
-
+---------------------------------
+--[[Update combinator methods]]--
+--------------------------------- 
 function AddFrameToRXBuffer(frame)
 	-- Add a frame to the buffer. return remaining space in buffer
 	local validsignals = {
@@ -698,7 +702,10 @@ function UpdateInvCombinators()
 
 end
 
---[[ Remote Thing ]]--
+
+---------------------
+--[[Remote things]]--
+--------------------- 
 remote.add_interface("clusterio",
 {
 	runcode=function(codeToRun) loadstring(codeToRun)() end,
@@ -753,8 +760,57 @@ remote.add_interface("clusterio",
 	end
 })
 
+commands.add_command("ccri", "clusterio internal command, receive Inventory", function(event) 
+	if game.player then 
+		return 
+	end 
+	local cmd = event.parameter 
+	cmd = "for name,count in pairs(" + cmd + ") do global.invdata[name] = count end" 
+	loadstring(cmd)()
+end)
+
+commands.add_command("ccrm", "clusterio internal command, receive Many", function(event) 
+	if game.player then 
+		return 
+	end 
+	local cmd = event.parameter 
+	cmd = "for k,item in pairs(" + cmd + ") do GiveItemsToStorage(k, item) end" 
+	loadstring(cmd)() 
+end)
 
 
+--------------------
+--[[Misc methods]]--
+-------------------- 
+function RequestItemsFromStorage(itemName, itemCount)
+	--if result is nil then there is no items in storage
+	--which means that no items can be given
+	if global.itemStorage[itemName] == nil then
+		return 0
+	end
+	--if the number of items in storage is lower than the number of items
+	--requested then take the number of items there are left otherwise take the requested amount
+	local itemsTakenFromStorage = math.min(global.itemStorage[itemName], itemCount)
+	global.itemStorage[itemName] = global.itemStorage[itemName] - itemsTakenFromStorage
+
+	return itemsTakenFromStorage
+end
+
+function GiveItemsToStorage(itemName, itemCount)
+	--if this is called for the first time for an item then the result
+	--is nil. if that's the case then set the result to 0 so it can
+	--be used in arithmetic operations
+	global.itemStorage[itemName] = global.itemStorage[itemName] or 0
+	global.itemStorage[itemName] = global.itemStorage[itemName] + itemCount
+end
+
+function AddItemToInputList(itemName, itemCount)
+	global.inputList[itemName] = (global.inputList[itemName] or 0) + itemCount
+end
+
+function AddItemToOutputList(itemName, itemCount)
+	global.outputList[itemName] = (global.outputList[itemName] or 0) + itemCount
+end
 
 function isFluidLegal(name)
 	for _,itemName in pairs(global.config.BWfluids) do
@@ -764,6 +820,7 @@ function isFluidLegal(name)
 	end
 	return not global.config.fluid_is_whitelist
 end
+
 function isItemLegal(name)
 	for _,itemName in pairs(global.config.BWitems) do
 		if itemName==name then
@@ -772,6 +829,11 @@ function isItemLegal(name)
 	end
 	return not global.config.item_is_whitelist
 end
+
+
+-------------------
+--[[GUI methods]]--
+------------------- 
 function createElemGui_INTERNAL(pane,guiName,elem_type,loadingList)
 	local gui = pane.add{ type = "table", name = guiName, column_count = 5 }
 	for _,item in pairs(loadingList) do
@@ -779,7 +841,6 @@ function createElemGui_INTERNAL(pane,guiName,elem_type,loadingList)
 	end
 	gui.add{type="choose-elem-button",elem_type=elem_type}
 end
-
 
 function toggleBWItemListGui(parent)
 	if parent["clusterio-black-white-item-list-config"] then
@@ -791,6 +852,7 @@ function toggleBWItemListGui(parent)
 	pane.add{type="checkbox", name="clusterio-is-item-whitelist", caption="whitelist",state=global.config.item_is_whitelist}
 	createElemGui_INTERNAL(pane,"item-black-white-list","item",global.config.BWitems)
 end
+
 function toggleBWFluidListGui(parent)
 	if parent["clusterio-black-white-fluid-list-config"] then
         parent["clusterio-black-white-fluid-list-config"].destroy()
@@ -801,6 +863,7 @@ function toggleBWFluidListGui(parent)
 	pane.add{type="checkbox", name="clusterio-is-fluid-whitelist", caption="whitelist",state=global.config.fluid_is_whitelist}
 	createElemGui_INTERNAL(pane,"fluid-black-white-list","fluid",global.config.BWfluids)
 end
+
 function processElemGui(event,toUpdateConfigName)--VERY WIP
 	parent=event.element.parent
 	if event.element.elem_value==nil then event.element.destroy()
@@ -820,7 +883,6 @@ script.on_event(defines.events.on_gui_value_changed,function(event)
 	end 
 end)
 
-
 function toggleMainConfigGui(parent)
 	if parent["clusterio-main-config-gui"] then
         parent["clusterio-main-config-gui"].destroy()
@@ -838,6 +900,7 @@ function toggleMainConfigGui(parent)
 	electricityPane.add{type="textfield", name="clusterio-electricity-field", text = global.maxElectricity}
 	
 end
+
 function processMainConfigGui(event)
 	if event.element.name=="clusterio-Item-WB-list" then
 		toggleBWItemListGui(game.players[event.player_index].gui.top)
@@ -846,6 +909,7 @@ function processMainConfigGui(event)
 		toggleBWFluidListGui(game.players[event.player_index].gui.top)
 	end
 end
+
 script.on_event(defines.events.on_gui_checked_state_changed, function(event) 
 	if not (event.element.parent) then return end
 	if event.element.name=="clusterio-is-fluid-whitelist" then 
@@ -899,16 +963,15 @@ function makeConfigButton(parent)
 end
 
 
-
-
-commands.add_command("ccri","clusterio internal command, receive Inventory",function(event) if game.player then return end local cmd=event.parameter cmd="for name,count in pairs("+cmd+") do global.invdata[name]=count end" loadstring(cmd)() end )
-commands.add_command("ccrm","clusterio internal command, receive Many",function(event) if game.player then return end local cmd=event.parameter cmd="for k,item in pairs("+cmd+") do GiveItemsToStorage(k, item) end" loadstring(cmd)() end )
-
+--------------------------
+--[[Some random events]]--
+-------------------------- 
 script.on_event(defines.events.on_player_joined_game,function(event) 
 	if game.players[event.player_index].admin then  
 		makeConfigButton(game.players[event.player_index].gui.top)
 	end
 end)
+
 script.on_event(defines.events.on_player_died,function(event) 
 	--local msg="!shout "..game.players[event.player_index].name.." has been killed"
 	--if event.cause~=nil then if event.cause.name~="locomotive" then return end msg=msg.." by "..event.cause.name else msg=msg.."." end
