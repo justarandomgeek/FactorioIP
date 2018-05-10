@@ -454,6 +454,7 @@ function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
 			
 			for i = 1, #requestInfo.requesters do
 				local chestHold = math.ceil(requestInfo.requesters[i].missingAmount * itemsToMissingItemsRatio)
+				chestHold = math.min(itemCount, chestHold)
 				
 				--No need to insert 0 of something
 				if chestHold > 0 then
