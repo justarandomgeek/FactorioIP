@@ -53,7 +53,8 @@ end
 
 function AddAllEntitiesOfNames(names)
 	local filters = {}
-	for name in names do
+	for i = 1, #names do
+		local name = names[i]
 		filters[#filters + 1] = {name = name}
 	end
 	for k, surface in pairs(game.surfaces) do
@@ -70,33 +71,29 @@ end
 function AddEntity(entity)
 	if entity.name == INPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.inputChests[entity.unit_number] = 
-		{
+		AddLink(global.inputChestsData.entitiesData, {
 			entity = entity,
 			inv = entity.get_inventory(defines.inventory.chest)
-		}
+		}, entity.unit_number)
 	elseif entity.name == OUTPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.outputChests[entity.unit_number] = 
-		{ 
+		AddLink(global.outputChestsData.entitiesData, {
 			entity = entity, 
 			inv = entity.get_inventory(defines.inventory.chest),
 			filterCount = entity.prototype.filter_count
-		}
+		}, entity.unit_number)
 	elseif entity.name == INPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.inputTanks[entity.unit_number] = 
-		{
+		AddLink(global.inputTanksData.entitiesData, {
 			entity = entity,
 			fluidbox = entity.fluidbox
-		}
+		}, entity.unit_number)
 	elseif entity.name == OUTPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.outputTanks[entity.unit_number] = 
-		{
+		AddLink(global.outputTanksData.entitiesData, {
 			entity = entity,
 			fluidbox = entity.fluidbox
-		}
+		}, entity.unit_number)
 		entity.active = false
 	elseif entity.name == TX_COMBINATOR_NAME then
 		global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
@@ -107,13 +104,12 @@ function AddEntity(entity)
 		global.invControls[entity.unit_number] = entity.get_or_create_control_behavior()
 		entity.operable=false
 	elseif entity.name == INPUT_ELECTRICITY_NAME then
-		global.inputElectricity[entity.unit_number] = entity
+		AddLink(global.inputElectricityData.entitiesData, entity, entity.unit_number)
 	elseif entity.name == OUTPUT_ELECTRICITY_NAME then
-		global.outputElectricity[entity.unit_number] = 
-		{
+		AddLink(global.outputElectricityData.entitiesData, {
 			entity = entity,
 			bufferSize = entity.electric_buffer_size
-		}
+		}, entity.unit_number)
 	end
 end
 
@@ -122,13 +118,13 @@ function OnKilledEntity(event)
 	if entity.type ~= "entity-ghost" then
 		--remove the entities from the tables as they are dead
 		if entity.name == INPUT_CHEST_NAME then
-			global.inputChests[entity.unit_number] = nil
+			RemoveLink(global.inputChestsData.entitiesData, entity.unit_number)
 		elseif entity.name == OUTPUT_CHEST_NAME then
-			global.outputChests[entity.unit_number] = nil
+			RemoveLink(global.outputChestsData.entitiesData, entity.unit_number)
 		elseif entity.name == INPUT_TANK_NAME then
-			global.inputTanks[entity.unit_number] = nil
+			RemoveLink(global.inputTanksData.entitiesData, entity.unit_number)
 		elseif entity.name == OUTPUT_TANK_NAME then
-			global.outputTanks[entity.unit_number] = nil
+			RemoveLink(global.outputTanksData.entitiesData, entity.unit_number)
 		elseif entity.name == TX_COMBINATOR_NAME then
 			global.txControls[entity.unit_number] = nil
 		elseif entity.name == RX_COMBINATOR_NAME then
@@ -136,9 +132,9 @@ function OnKilledEntity(event)
 		elseif entity.name == INV_COMBINATOR_NAME then
 			global.invControls[entity.unit_number] = nil
 		elseif entity.name == INPUT_ELECTRICITY_NAME then
-			global.inputElectricity[entity.unit_number] = nil
+			RemoveLink(global.inputElectricityData.entitiesData, entity.unit_number)
 		elseif entity.name == OUTPUT_ELECTRICITY_NAME then
-			global.outputElectricity[entity.unit_number] = nil
+			RemoveLink(global.outputElectricityData.entitiesData, entity.unit_number)
 		end
 	end
 end
@@ -269,8 +265,11 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
+	global.ticksSinceMasterPinged = 0
 	if global.ticksSinceMasterPinged < 300 then		
 		global.isConnected = true
+		
+		
 		if global.prevIsConnected == false then
 			global.workTick = 0
 		end
@@ -284,27 +283,12 @@ script.on_event(defines.events.on_tick, function(event)
 			--the 10 second period.
 			local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
 			global.allowedToMakeElectricityRequests = timeSinceLastElectricityUpdate > 60 * 3.5
-		end
-		
-		
-		
-		
-		
-		--need to update creation and removal of entities to support linked list
-		
-		
-		
-		
-		
-		
-		
-		
-		
+		end		
 		
 		--First retrieve requests and then fulfill them
 		if global.workTick >= 0 and global.workTick < TICKS_TO_COLLECT_REQUESTS then
 			if global.workTick == 0 then
-				ResetRequestGathererIterators()
+				ResetRequestGathering()
 			end
 			RetrieveGetterRequests(global.allowedToMakeElectricityRequests)
 		elseif global.workTick >= TICKS_TO_COLLECT_REQUESTS and global.workTick < TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS then
@@ -327,10 +311,13 @@ script.on_event(defines.events.on_tick, function(event)
 		
 		if     global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 0 then
 			ExportInputList()
+			global.workTick = global.workTick + 1
 		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 1 then
 			ExportOutputList()
+			global.workTick = global.workTick + 1
 		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 2 then
 			ExportFluidFlows()
+			global.workTick = global.workTick + 1
 		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 3 then
 			ExportItemFlows()
 			
@@ -339,18 +326,20 @@ script.on_event(defines.events.on_tick, function(event)
 			if global.allowedToMakeElectricityRequests then
 				global.lastElectricityUpdate = game.tick
 			end
+		else
+			global.workTick = global.workTick + 1
 		end
 	else
 		global.isConnected = false
 	end
-	gobal.prevIsConnected = isConnected
+	global.prevIsConnected = global.isConnected
 
 	-- RX Combinators are set and then cleared on sequential ticks to create pulses
 	UpdateRXCombinators()
 end)
 
 function UpdateUseableStorage()
-	for k, v in ipairs(global.itemStorage) do
+	for k, v in pairs(global.itemStorage) do
 		GiveItemsToUseableStorage(k, v)
 	end
 	global.itemStorage = {}
@@ -360,22 +349,25 @@ end
 ----------------------------------------
 --[[Getter and setter update methods]]--
 ---------------------------------------- 
-function ResetRequestGathererIterators()
-	global.outputChestsData.entitiesData     .RestartIterator(TICKS_TO_COLLECT_REQUESTS)
-	global.outputTanksData.entitiesData      .RestartIterator(TICKS_TO_COLLECT_REQUESTS)
-	global.outputElectricityData.entitiesData.RestartIterator(TICKS_TO_COLLECT_REQUESTS)
+function ResetRequestGathering()
+	RestartIterator(global.outputChestsData.entitiesData     , TICKS_TO_COLLECT_REQUESTS)
+	global.outputChestsData.requests = {}
+	RestartIterator(global.outputTanksData.entitiesData      , TICKS_TO_COLLECT_REQUESTS)
+	global.outputTanksData.requests = {}
+	RestartIterator(global.outputElectricityData.entitiesData, TICKS_TO_COLLECT_REQUESTS)
+	global.outputElectricityData.requests = {}
 end
 
 function ResetFulfillRequestIterators()
-	global.outputChestsData.requestsLL     .RestartIterator(TICKS_TO_FULFILL_REQUESTS)
-	global.outputTanksData.requestsLL      .RestartIterator(TICKS_TO_FULFILL_REQUESTS)
-	global.outputElectricityData.requestsLL.RestartIterator(TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.outputChestsData.requestsLL     , TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.outputTanksData.requestsLL      , TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.outputElectricityData.requestsLL, TICKS_TO_FULFILL_REQUESTS)
 end
 
 function ResetPutterIterators()
-	global.inputChestsData.entitiesData     .RestartIterator(TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
-	global.inputTanksData.entitiesData      .RestartIterator(TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
-	global.inputElectricityData.entitiesData.RestartIterator(TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.inputChestsData.entitiesData     , TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.inputTanksData.entitiesData      , TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.inputElectricityData.entitiesData, TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
 end
 
 function PrepareToFulfillRequests()
@@ -387,26 +379,26 @@ end
 function RetrieveGetterRequests(allowedToGetElectricityRequests)	
 	local chestLL = global.outputChestsData.entitiesData
 	for i = 1, chestLL.iterator.linksPerTick do
-		local nextLink = chestLL.NextLink()
+		local nextLink = NextLink(chestLL)
 		if nextLink ~= nil then
-			GetOutputChestRequest(nextLink.data)
+			GetOutputChestRequest(global.outputChestsData.requests, nextLink.data)
 		end
 	end
 	
 	local tankLL = global.outputTanksData.entitiesData
 	for i = 1, tankLL.iterator.linksPerTick do
-		local nextLink = tankLL.NextLink()
+		local nextLink = NextLink(tankLL)
 		if nextLink ~= nil then
-			GetOutputTankRequest(nextLink.data)
+			GetOutputTankRequest(global.outputTanksData.requests, nextLink.data)
 		end
 	end
 	
 	if allowedToGetElectricityRequests then
 		local electricityLL = global.outputElectricityData.entitiesData
 		for i = 1, electricityLL.iterator.linksPerTick do
-			local nextLink = electricityLL.NextLink()
+			local nextLink = NextLink(electricityLL)
 			if nextLink ~= nil then
-				GetOutputElectricityRequest(nextLink.data)
+				GetOutputElectricityRequest(global.outputElectricityData.requests, nextLink.data)
 			end
 		end
 	end
@@ -415,7 +407,7 @@ end
 function FulfillGetterRequests(allowedToGetElectricityRequests)
 	local chestLL = global.outputChestsData.requestsLL
 	for i = 1, chestLL.iterator.linksPerTick do
-		local nextLink = chestLL.NextLink()
+		local nextLink = NextLink(chestLL)
 		if nextLink ~= nil then
 			FulfillOutputChestRequest(nextLink.data)
 		end
@@ -423,7 +415,7 @@ function FulfillGetterRequests(allowedToGetElectricityRequests)
 	
 	local tankLL = global.outputTanksData.requestsLL
 	for i = 1, tankLL.iterator.linksPerTick do
-		local nextLink = tankLL.NextLink()
+		local nextLink = NextLink(tankLL)
 		if nextLink ~= nil then
 			FulfillOutputTankRequest(nextLink.data)
 		end
@@ -432,7 +424,7 @@ function FulfillGetterRequests(allowedToGetElectricityRequests)
 	if allowedToGetElectricityRequests then
 		local electricityLL = global.outputElectricityData.requestsLL
 		for i = 1, electricityLL.iterator.linksPerTick do
-			local nextLink = electricityLL.NextLink()
+			local nextLink = NextLink(electricityLL)
 			if nextLink ~= nil then
 				FulfillOutputElectricityRequest(nextLink.data)
 			end
@@ -443,7 +435,7 @@ end
 function EmptyPutters()
 	local chestLL = global.inputChestsData.entitiesData
 	for i = 1, chestLL.iterator.linksPerTick do
-		local nextLink = chestLL.NextLink()
+		local nextLink = NextLink(chestLL)
 		if nextLink ~= nil then
 			HandleInputChest(nextLink.data)
 		end
@@ -451,7 +443,7 @@ function EmptyPutters()
 	
 	local tankLL = global.inputTanksData.entitiesData
 	for i = 1, tankLL.iterator.linksPerTick do
-		local nextLink = tankLL.NextLink()
+		local nextLink = NextLink(tankLL)
 		if nextLink ~= nil then
 			HandleInputTank(nextLink.data)
 		end
@@ -459,7 +451,7 @@ function EmptyPutters()
 	
 	local electricityLL = global.inputElectricityData.entitiesData
 	for i = 1, electricityLL.iterator.linksPerTick do
-		local nextLink = electricityLL.NextLink()
+		local nextLink = NextLink(electricityLL)
 		if nextLink ~= nil then
 			HandleInputElectricity(nextLink.data)
 		end
@@ -515,7 +507,6 @@ function HandleInputElectricity(entity)
 	end
 end
 
-
 function GetOutputChestRequest(requests, entityData)
 	local entity = entityData.entity
 	local chestInventory = entityData.inv
@@ -531,10 +522,10 @@ function GetOutputChestRequest(requests, entityData)
 			--to be imported
 			if requestItem ~= nil and isItemLegal(requestItem.name) then
 				local itemsInChest = chestInventory.get_item_count(requestItem.name)
-				
+
 				--If there isn't enough items in the chest
-				if itemsInChest < requestItem.count then
-					local missingAmount = requestItem.count - itemsInChest
+				local missingAmount = requestItem.count - itemsInChest
+				if missingAmount > 0 then
 					local entry = AddRequestToTable(requests, requestItem.name, missingAmount, entity)
 					entry.inv = chestInventory
 				end
@@ -591,15 +582,15 @@ end
 
 
 function FulfillOutputChestRequest(requests)
-	EvenlyDistributeItems(requests, true, OutputChestInputMethod)
+	EvenlyDistributeItems(requests, OutputChestInputMethod)
 end
 
 function FulfillOutputTankRequest(requests)
-	EvenlyDistributeItems(requests, false, OutputTankInputMethod)
+	EvenlyDistributeItems(requests, OutputTankInputMethod)
 end
 
 function FulfillOutputElectricityRequest(requests)
-	EvenlyDistributeItems(requests, false, OutputElectricityinputMethod)
+	EvenlyDistributeItems(requests, OutputElectricityinputMethod)
 end
 
 
@@ -645,7 +636,7 @@ end
 
 function ArrayToLinkedListOfRequests(array, shouldSort)
 	local linkedList = CreateDoublyLinkedList()
-	for itemName, requestInfo in ipairs(array) do
+	for itemName, requestInfo in pairs(array) do
 		if shouldSort then
 			--To be able to distribute it fairly, the requesters need to be sorted in order of how
 			--much they are missing, so the requester with the least missing of the item will be first.
@@ -660,7 +651,7 @@ function ArrayToLinkedListOfRequests(array, shouldSort)
 			local request = requestInfo.requesters[i]
 			request.itemName = itemName
 			request.requestedAmount = requestInfo.requestedAmount
-			linkedList.AddLink(request, 0)
+			AddLink(linkedList, request, 0)
 		end
 	end
 	
@@ -693,34 +684,32 @@ end
 
 function EvenlyDistributeItems(request, functionToAddItems)
 	--Take the required item count from storage or how much storage has
-	local itemCount = RequestItemsFromUseableStorage(itemName, request.requestedAmount)
-	
-	if itemCount < request.requestedAmount then
-		--Missing items items of this type so request them
-		local missingItems = request.requestedAmount - itemCount
-		AddItemToOutputList(itemName, missingItems)
-	end
+	local itemCount = RequestItemsFromUseableStorage(request.itemName, request.requestedAmount)
 	
 	--If there isn't enough items to fill all the requests, then the  requests
 	--has to be scaled down in proportion to how much that is missing so all
 	--requests will be filled equally much
 	local itemsToMissingItemsRatio = itemCount / request.requestedAmount
+	local chestHold = math.ceil(request.missingAmount * itemsToMissingItemsRatio)
+	local missingItems = request.missingAmount - chestHold
+	if missingItems > 0 then
+		--Missing items items of this type so request them
+		AddItemToOutputList(request.itemName, missingItems)
+	end
 	
 	--If storage had some of the required item then begin distributing it evenly
 	--in all the requesters
-	if itemCount > 0 then			
-		local chestHold = math.ceil(request.missingAmount * itemsToMissingItemsRatio)
-			
+	if itemCount > 0 then						
 		--No need to insert 0 of something
 		if chestHold > 0 then
 			--Insert the missing items into the entity and subtract the inserted items from the itemCount
-			local insertedItemsCount = functionToAddItems(request, itemName, chestHold)
+			local insertedItemsCount = functionToAddItems(request, request.itemName, chestHold)
 			itemCount = itemCount - insertedItemsCount
 		end
 		
 		--Give remaining items back to storage
 		if itemCount > 0 then
-			GiveItemsToUseableStorage(itemName, itemCount)
+			GiveItemsToUseableStorage(request.itemName, itemCount)
 		end
 	end
 

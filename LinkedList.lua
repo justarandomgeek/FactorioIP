@@ -10,12 +10,6 @@ function CreateDoublyLinkedList()
 		},
 		dataIdentifierToLink = {},
 		count = 0
-		
-		--Methods
-		AddLink = function(data, dataIdentifier) AddLink(newdll, data, dataIdentifier) end,
-		RemoveLink = function(dataIdentifier) RemoveLink(newdll, dataIdentifier) end,
-		RestartIterator = function(linksPerTick) RestartIterator(newdll, linksPerTick) end,
-		NextLink = function() NextLink(newdll) end
 	}
 	
 	return newdll
@@ -50,7 +44,7 @@ function AddLink(linkedList, data, dataIdentifier)
 	--the whole chain
 	linkedList.dataIdentifierToLink[dataIdentifier] = newLink
 	
-	count = count + 1
+	linkedList.count = linkedList.count + 1
 end
 
 function RemoveLink(linkedList, dataIdentifier)
@@ -60,10 +54,10 @@ function RemoveLink(linkedList, dataIdentifier)
 	--Need to link the previous and next link together so they 
 	--circumvent this removed link so the chain isn't broken
 	if link.prevLink ~= nil then
-		link.prevlink.nextLink = link.nextLink
+		link.prevLink.nextLink = link.nextLink
 	end
 	if link.nextLink ~= nil then
-		link.nextLink.prevlink = link.prevlink
+		link.nextLink.prevLink = link.prevLink
 	end
 	
 	--Need update the first link and last link because
@@ -72,7 +66,7 @@ function RemoveLink(linkedList, dataIdentifier)
 		linkedList.firstLink = link.nextLink
 	end
 	if linkedList.lastLink == link then
-		linkedList.lastLink = link.prevlink
+		linkedList.lastLink = link.prevLink
 	end
 	
 	--The iterators current link might be this link so to remove it
@@ -81,7 +75,7 @@ function RemoveLink(linkedList, dataIdentifier)
 		linkedList.iterator.currentLink = link.nextLink
 	end
 	
-	count = count - 1
+	linkedList.count = linkedList.count - 1
 end
 
 function RestartIterator(linkedList, ticksToIterateChain)
@@ -89,7 +83,7 @@ function RestartIterator(linkedList, ticksToIterateChain)
 	if linkedList.count == 0 then
 		linkedList.iterator.linksPerTick = 0
 	else 
-		linkedList.iterator.linksPerTick = math.ceil(ticksToIterateChain / linkedList.count)
+		linkedList.iterator.linksPerTick = math.ceil(linkedList.count / ticksToIterateChain)
 	end
 end
 
@@ -97,5 +91,8 @@ function NextLink(linkedList)
 	if linkedList.iterator.currentLink == nil then
 		return nil
 	end
-	return linkedList.iterator.currentLink.nextLink
+	
+	local toReturn = linkedList.iterator.currentLink
+	linkedList.iterator.currentLink = linkedList.iterator.currentLink.nextLink
+	return toReturn
 end
