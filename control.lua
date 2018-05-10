@@ -1,4 +1,5 @@
 require("config")
+require("LinkedList")
 local json = require("json")
 
 ------------------------------------------------------------
@@ -186,6 +187,10 @@ end)
 
 function Reset()
 	global.ticksSinceMasterPinged = 601
+	global.isConnected = false
+	global.prevIsConnected = false
+	global.allowedToMakeElectricityRequests = false
+	global.workTick = 0
 
 	if global.config == nil then 
 		global.config = 
@@ -204,21 +209,46 @@ function Reset()
 	global.outputList = {}
 	global.inputList = {}
 	global.itemStorage = {}
+	global.useableItemStorage = {}
 
-	global.inputChests = {}
-	global.outputChests = {}
+	global.inputChestsData = 
+	{
+		entitiesData = CreateDoublyLinkedList()
+	}
+	global.outputChestsData = 
+	{
+		entitiesData = CreateDoublyLinkedList(),
+		requests = {},
+		requestsLL = nil
+	}
 
-	global.inputTanks = {}
-	global.outputTanks = {}
+	global.inputTanksData = 
+	{
+		entitiesData = CreateDoublyLinkedList()
+	}
+	global.outputTanksData = 
+	{
+		entitiesData = CreateDoublyLinkedList(),
+		requests = {},
+		requestsLL = nil
+	}
+	
+	global.inputElectricityData = 
+	{
+		entitiesData = CreateDoublyLinkedList()
+	}
+	global.outputElectricityData = 
+	{
+		entitiesData = CreateDoublyLinkedList(),
+		requests = {},
+		requestsLL = nil
+	}
+	global.lastElectricityUpdate = 0
+	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ assuming a ratio of 1.000.000
 
 	global.rxControls = {}
 	global.txControls = {}
 	global.invControls = {}
-	
-	global.inputElectricity = {}
-	global.outputElectricity = {}
-	global.lastElectricityUpdate = 0
-	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ assuming a ratio of 1.000.000
 
 	AddAllEntitiesOfNames(
 	{
@@ -239,206 +269,402 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	HandleOutputElectricity()
-	--[[
-	if global.ticksSinceMasterPinged < 300 then
-		local todo = game.tick % UPDATE_RATE
-		local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
-		if todo == 0 then
-			HandleInputChests()
-		elseif todo == 1 then
-			HandleInputTanks()
-		elseif todo == 2 then
-			HandleOutputChests()
-		elseif todo == 3 then
-			HandleOutputTanks()
-		elseif todo == 4 then
-			HandleInputElectricity()
-		--importing electricity should be limited because it requests so
-		--much at once. If it wasn't limited then the electricity could
-		--make small burst of requests which requests >10x more than it needs
-		--which could temporarily starve other networks.
-		--Updating every 4 seconds give two chances to give electricity in
-		--the 10 second period.
-		elseif todo == 5 and timeSinceLastElectricityUpdate >= 60 * 4 then -- only update ever 4 seconds
-			HandleOutputElectricity()
-			global.lastElectricityUpdate = game.tick
-		elseif todo == 6 then
-			ExportInputList()
-		elseif todo == 7 then
-			ExportOutputList()
-		elseif todo == 8 then
-			ExportFluidFlows()
-		elseif todo == 9 then
-			ExportItemFlows()
+	if global.ticksSinceMasterPinged < 300 then		
+		global.isConnected = true
+		if global.prevIsConnected == false then
+			global.workTick = 0
 		end
+	
+		if global.workTick == 0 then
+			--importing electricity should be limited because it requests so
+			--much at once. If it wasn't limited then the electricity could
+			--make small burst of requests which requests >10x more than it needs
+			--which could temporarily starve other networks.
+			--Updating every 4 seconds give two chances to give electricity in
+			--the 10 second period.
+			local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
+			global.allowedToMakeElectricityRequests = timeSinceLastElectricityUpdate > 60 * 3.5
+		end
+		
+		
+		
+		
+		
+		--need to update creation and removal of entities to support linked list
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		--First retrieve requests and then fulfill them
+		if global.workTick >= 0 and global.workTick < TICKS_TO_COLLECT_REQUESTS then
+			if global.workTick == 0 then
+				ResetRequestGathererIterators()
+			end
+			RetrieveGetterRequests(global.allowedToMakeElectricityRequests)
+		elseif global.workTick >= TICKS_TO_COLLECT_REQUESTS and global.workTick < TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS then
+			if global.workTick == TICKS_TO_COLLECT_REQUESTS then
+				PrepareToFulfillRequests()
+				ResetFulfillRequestIterators()
+				UpdateUseableStorage()
+			end
+			FulfillGetterRequests(global.allowedToMakeElectricityRequests)
+		end
+		
+		--Emptying putters will continiously happen
+		--while requests are gathered and fulfilled
+		if global.workTick >= 0 and global.workTick < TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS then
+			if global.workTick == 0 then
+				ResetPutterIterators()
+			end
+			EmptyPutters()
+		end
+		
+		if     global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 0 then
+			ExportInputList()
+		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 1 then
+			ExportOutputList()
+		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 2 then
+			ExportFluidFlows()
+		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 3 then
+			ExportItemFlows()
+			
+			--Restart loop
+			global.workTick = 0
+			if global.allowedToMakeElectricityRequests then
+				global.lastElectricityUpdate = game.tick
+			end
+		end
+	else
+		global.isConnected = false
 	end
-	]]--
+	gobal.prevIsConnected = isConnected
 
 	-- RX Combinators are set and then cleared on sequential ticks to create pulses
 	UpdateRXCombinators()
 end)
 
+function UpdateUseableStorage()
+	for k, v in ipairs(global.itemStorage) do
+		GiveItemsToUseableStorage(k, v)
+	end
+	global.itemStorage = {}
+end
+
 
 ----------------------------------------
 --[[Getter and setter update methods]]--
 ---------------------------------------- 
-function HandleInputChests()
-	for k, v in pairs(global.inputChests) do
-		local entity = v.entity
-		local inventory = v.inv
-		if entity.valid then
-			--get the content of the chest
-			local items = inventory.get_contents()
-			--write everything to the file
-			for itemName, itemCount in pairs(items) do
-				if isItemLegal(itemName) then
-					AddItemToInputList(itemName, itemCount)
-					inventory.remove({name = itemName, count = itemCount})
-				end
+function ResetRequestGathererIterators()
+	global.outputChestsData.entitiesData     .RestartIterator(TICKS_TO_COLLECT_REQUESTS)
+	global.outputTanksData.entitiesData      .RestartIterator(TICKS_TO_COLLECT_REQUESTS)
+	global.outputElectricityData.entitiesData.RestartIterator(TICKS_TO_COLLECT_REQUESTS)
+end
+
+function ResetFulfillRequestIterators()
+	global.outputChestsData.requestsLL     .RestartIterator(TICKS_TO_FULFILL_REQUESTS)
+	global.outputTanksData.requestsLL      .RestartIterator(TICKS_TO_FULFILL_REQUESTS)
+	global.outputElectricityData.requestsLL.RestartIterator(TICKS_TO_FULFILL_REQUESTS)
+end
+
+function ResetPutterIterators()
+	global.inputChestsData.entitiesData     .RestartIterator(TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+	global.inputTanksData.entitiesData      .RestartIterator(TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+	global.inputElectricityData.entitiesData.RestartIterator(TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+end
+
+function PrepareToFulfillRequests()
+	global.outputChestsData.requestsLL      = ArrayToLinkedListOfRequests(global.outputChestsData.requests     , true)
+	global.outputTanksData.requestsLL       = ArrayToLinkedListOfRequests(global.outputTanksData.requests      , false)
+	global.outputElectricityData.requestsLL = ArrayToLinkedListOfRequests(global.outputElectricityData.requests, false)
+end
+
+function RetrieveGetterRequests(allowedToGetElectricityRequests)	
+	local chestLL = global.outputChestsData.entitiesData
+	for i = 1, chestLL.iterator.linksPerTick do
+		local nextLink = chestLL.NextLink()
+		if nextLink ~= nil then
+			GetOutputChestRequest(nextLink.data)
+		end
+	end
+	
+	local tankLL = global.outputTanksData.entitiesData
+	for i = 1, tankLL.iterator.linksPerTick do
+		local nextLink = tankLL.NextLink()
+		if nextLink ~= nil then
+			GetOutputTankRequest(nextLink.data)
+		end
+	end
+	
+	if allowedToGetElectricityRequests then
+		local electricityLL = global.outputElectricityData.entitiesData
+		for i = 1, electricityLL.iterator.linksPerTick do
+			local nextLink = electricityLL.NextLink()
+			if nextLink ~= nil then
+				GetOutputElectricityRequest(nextLink.data)
 			end
 		end
 	end
 end
 
-function HandleInputTanks()
-	for k, v in pairs(global.inputTanks) do
-		local entity  = v.entity
-		local fluidbox = v.fluidbox
-		if entity.valid then
-			--get the content of the chest
-			local fluid = fluidbox[1]
-			if fluid ~= nil and math.floor(fluid.amount) > 0 then
-				if isFluidLegal(fluid.name) then
-					AddItemToInputList(fluid.name, math.floor(fluid.amount))
-					fluid.amount = fluid.amount - math.floor(fluid.amount)
-				end
+function FulfillGetterRequests(allowedToGetElectricityRequests)
+	local chestLL = global.outputChestsData.requestsLL
+	for i = 1, chestLL.iterator.linksPerTick do
+		local nextLink = chestLL.NextLink()
+		if nextLink ~= nil then
+			FulfillOutputChestRequest(nextLink.data)
+		end
+	end
+	
+	local tankLL = global.outputTanksData.requestsLL
+	for i = 1, tankLL.iterator.linksPerTick do
+		local nextLink = tankLL.NextLink()
+		if nextLink ~= nil then
+			FulfillOutputTankRequest(nextLink.data)
+		end
+	end
+	
+	if allowedToGetElectricityRequests then
+		local electricityLL = global.outputElectricityData.requestsLL
+		for i = 1, electricityLL.iterator.linksPerTick do
+			local nextLink = electricityLL.NextLink()
+			if nextLink ~= nil then
+				FulfillOutputElectricityRequest(nextLink.data)
 			end
-			fluidbox[1] = fluid
 		end
 	end
 end
 
-function HandleInputElectricity()
+function EmptyPutters()
+	local chestLL = global.inputChestsData.entitiesData
+	for i = 1, chestLL.iterator.linksPerTick do
+		local nextLink = chestLL.NextLink()
+		if nextLink ~= nil then
+			HandleInputChest(nextLink.data)
+		end
+	end
+	
+	local tankLL = global.inputTanksData.entitiesData
+	for i = 1, tankLL.iterator.linksPerTick do
+		local nextLink = tankLL.NextLink()
+		if nextLink ~= nil then
+			HandleInputTank(nextLink.data)
+		end
+	end
+	
+	local electricityLL = global.inputElectricityData.entitiesData
+	for i = 1, electricityLL.iterator.linksPerTick do
+		local nextLink = electricityLL.NextLink()
+		if nextLink ~= nil then
+			HandleInputElectricity(nextLink.data)
+		end
+	end
+end
+
+
+function HandleInputChest(entityData)
+	local entity = entityData.entity
+	local inventory = entityData.inv
+	if entity.valid then
+		--get the content of the chest
+		local items = inventory.get_contents()
+		--write everything to the file
+		for itemName, itemCount in pairs(items) do
+			if isItemLegal(itemName) then
+				AddItemToInputList(itemName, itemCount)
+				inventory.remove({name = itemName, count = itemCount})
+			end
+		end
+	end
+end
+
+function HandleInputTank(entityData)
+	local entity  = entityData.entity
+	local fluidbox = entityData.fluidbox
+	if entity.valid then
+		--get the content of the chest
+		local fluid = fluidbox[1]
+		if fluid ~= nil and math.floor(fluid.amount) > 0 then
+			if isFluidLegal(fluid.name) then
+				AddItemToInputList(fluid.name, math.floor(fluid.amount))
+				fluid.amount = fluid.amount - math.floor(fluid.amount)
+			end
+		end
+		fluidbox[1] = fluid
+	end
+end
+
+function HandleInputElectricity(entity)
 	--if there is too much energy in the network then stop outputting more
 	if global.invdata and global.invdata[ELECTRICITY_ITEM_NAME] and global.invdata[ELECTRICITY_ITEM_NAME] >= global.maxElectricity then
 		return
 	end
-	for k, entity in pairs(global.inputElectricity) do
-		if entity.valid then
-			local energy = entity.energy
-			local availableEnergy = math.floor(energy / ELECTRICITY_RATIO)
-			if availableEnergy > 0 then
-				AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
-				entity.energy = energy - (availableEnergy * ELECTRICITY_RATIO)
+	
+	if entity.valid then
+		local energy = entity.energy
+		local availableEnergy = math.floor(energy / ELECTRICITY_RATIO)
+		if availableEnergy > 0 then
+			AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
+			entity.energy = energy - (availableEnergy * ELECTRICITY_RATIO)
+		end
+	end
+end
+
+
+function GetOutputChestRequest(requests, entityData)
+	local entity = entityData.entity
+	local chestInventory = entityData.inv
+	local filterCount = entityData.filterCount
+	--Don't insert items into the chest if it's being deconstructed
+	--as that just leads to unnecessary bot work
+	if entity.valid and not entity.to_be_deconstructed(entity.force) then
+		--Go though each request slot
+		for i = 1, filterCount do
+			local requestItem = entity.get_request_slot(i)
+			
+			--Some request slots may be empty and some items are not allowed
+			--to be imported
+			if requestItem ~= nil and isItemLegal(requestItem.name) then
+				local itemsInChest = chestInventory.get_item_count(requestItem.name)
+				
+				--If there isn't enough items in the chest
+				if itemsInChest < requestItem.count then
+					local missingAmount = requestItem.count - itemsInChest
+					local entry = AddRequestToTable(requests, requestItem.name, missingAmount, entity)
+					entry.inv = chestInventory
+				end
 			end
 		end
 	end
 end
 
-function HandleOutputChests()
-	local itemRequests = {}
-	for k, v in pairs(global.outputChests) do
-		local entity = v.entity
-		local chestInventory = v.inv
-		local filterCount = v.filterCount
-		--Don't insert items into the chest if it's being deconstructed
-		--as that just leads to unnecessary bot work
-		if entity.valid and not entity.to_be_deconstructed(entity.force) then
-			--Go though each request slot
-			for i = 1, filterCount do
-				local requestItem = entity.get_request_slot(i)
-				
-				--Some request slots may be empty and some items are not allowed
-				--to be imported
-				if requestItem ~= nil and isItemLegal(requestItem.name) then
-					local itemsInChest = chestInventory.get_item_count(requestItem.name)
-					
-					--If there isn't enough items in the chest
-					if itemsInChest < requestItem.count then
-						local missingAmount = requestItem.count - itemsInChest
-						AddRequestToTable(itemRequests, requestItem.name, missingAmount, chestInventory)
-					end
-				end
+function GetOutputTankRequest(requests, entityData)
+	local entity = entityData.entity
+	local fluidbox = entityData.fluidbox
+	--The type of fluid the tank should output
+	--is determined by the recipe set in the  entity.
+	--If no recipe is set then it shouldn't output anything
+	local recipe = entity.get_recipe()
+	if entity.valid and recipe ~= nil then
+		--Get name of the fluid to output
+		local fluidName = recipe.products[1].name
+		--Some fluids may be illegal. If that's the case then don't process them
+		if isFluidLegal(fluidName) then
+			--Either get the current fluid or reset it to the requested fluid
+			local fluid = fluidbox[1] or {name = fluidName, amount = 0}
+
+			--If the current fluid isn't the correct fluid
+			--then remove that fluid
+			if fluid.name ~= fluidName then
+				fluid = {name = fluidName, amount = 0}
+			end
+
+			local missingFluid = math.max(math.ceil(MAX_FLUID_AMOUNT - fluid.amount), 0)
+			--If the entity is missing fluid than add a request for fluid
+			if missingFluid > 0 then
+				local entry = AddRequestToTable(requests, fluidName, missingFluid, entity)
+				--Add fluid to the request so it doesn't have to be created again
+				entry.fluid = fluid
+				entry.fluidbox = fluidbox
 			end
 		end
 	end
-	
-	EvenlyDistributeItems(itemRequests, true, function(request, itemName, evenShareOfItems)
+end
+
+function GetOutputElectricityRequest(requests, entityData)
+	local entity = entityData.entity
+	local bufferSize = entityData.bufferSize
+	if entity.valid then
+		local energy = entity.energy
+		local missingElectricity = math.floor((bufferSize - energy) / ELECTRICITY_RATIO)
+		if missingElectricity > 0 then
+			local entry = AddRequestToTable(requests, ELECTRICITY_ITEM_NAME, missingElectricity, entity)
+			entry.energy = energy
+		end
+	end
+end
+
+
+function FulfillOutputChestRequest(requests)
+	EvenlyDistributeItems(requests, true, OutputChestInputMethod)
+end
+
+function FulfillOutputTankRequest(requests)
+	EvenlyDistributeItems(requests, false, OutputTankInputMethod)
+end
+
+function FulfillOutputElectricityRequest(requests)
+	EvenlyDistributeItems(requests, false, OutputElectricityinputMethod)
+end
+
+
+function OutputChestInputMethod(request, itemName, evenShareOfItems)
+	if request.storage.valid then
 		local itemsToInsert = 
 		{
 			name = itemName, 
 			count = evenShareOfItems
 		}
 		
-		return request.storage.insert(itemsToInsert)
-	end)
+		return request.inv.insert(itemsToInsert)
+	else
+		return 0
+	end
 end
 
-function HandleOutputTanks()
-	local fluidRequests = {}
-	for k, v in pairs(global.outputTanks) do
-		local entity = v.entity
-		local fluidbox = v.fluidbox
-		--The type of fluid the tank should output
-		--is determined by the recipe set in the  entity.
-		--If no recipe is set then it shouldn't output anything
-		local recipe = entity.get_recipe()
-		if entity.valid and recipe ~= nil then
-			--Get name of the fluid to output
-			local fluidName = recipe.products[1].name
-			--Some fluids may be illegal. If that's the case then don't process them
-			if isFluidLegal(fluidName) then
-				--Either get the current fluid or reset it to the requested fluid
-				local fluid = fluidbox[1] or {name = fluidName, amount = 0}
-
-				--If the current fluid isn't the correct fluid
-				--then remove that fluid
-				if fluid.name ~= fluidName then
-					fluid = {name = fluidName, amount = 0}
-				end
-
-				local missingFluid = math.max(math.ceil(MAX_FLUID_AMOUNT - fluid.amount), 0)
-				--If the entity is missing fluid than add a request for fluid
-				if missingFluid > 0 then
-					local entry = AddRequestToTable(fluidRequests, fluidName, missingFluid, v)
-					--Add fluid to the request so it doesn't have to be created again
-					entry.fluid = fluid
-					entry.fluidbox = fluidbox
-				end
-			end
-		end
-	end
-	
-	EvenlyDistributeItems(fluidRequests, false, function(request, _, evenShareOfFluid)
+function OutputTankInputMethod(request, _, evenShareOfFluid)
+	if request.storage.valid then
 		request.fluid.amount = request.fluid.amount + evenShareOfFluid
+		
+		--Need to set steams heat because otherwise it's too low
 		if request.fluid.name == "steam" then
 			request.fluid.temperature = 165
 		end
+		
 		request.fluidbox[1] = request.fluid
 		return evenShareOfFluid
-	end)
+	else
+		return 0
+	end
 end
 
-function HandleOutputElectricity()
-	local electricityRequests = {}
-	for k, v in pairs(global.outputElectricity) do
-		local entity = v.entity
-		local bufferSize = v.bufferSize
-		if entity.valid then
-			local energy = entity.energy
-			local missingElectricity = math.floor((bufferSize - energy) / ELECTRICITY_RATIO)
-			if missingElectricity > 0 then
-				local entry = AddRequestToTable(electricityRequests, ELECTRICITY_ITEM_NAME, missingElectricity, entity)
-				entry.energy = energy
-			end
+function OutputElectricityinputMethod(request, _, evenShare)
+	if request.storage.valid then
+		request.storage.energy = request.energy + (evenShare * ELECTRICITY_RATIO)
+		return evenShare
+	else
+		return 0
+	end
+end
+
+
+function ArrayToLinkedListOfRequests(array, shouldSort)
+	local linkedList = CreateDoublyLinkedList()
+	for itemName, requestInfo in ipairs(array) do
+		if shouldSort then
+			--To be able to distribute it fairly, the requesters need to be sorted in order of how
+			--much they are missing, so the requester with the least missing of the item will be first.
+			--If this isn't done then there could be items leftover after they have been distributed
+			--even though they could all have been distributed if they had been distributed in order.
+			table.sort(requestInfo.requesters, function(left, right)
+				return left.missingAmount < right.missingAmount
+			end)
+		end
+		
+		for i = 1, #requestInfo.requesters do
+			local request = requestInfo.requesters[i]
+			request.itemName = itemName
+			request.requestedAmount = requestInfo.requestedAmount
+			linkedList.AddLink(request, 0)
 		end
 	end
 	
-	EvenlyDistributeItems(electricityRequests, false, function(request, _, evenShare)
-		request.storage.energy = request.energy + (evenShare * ELECTRICITY_RATIO)
-		return evenShare
-	end)
+	return linkedList
 end
 
 function AddRequestToTable(requests, itemName, missingAmount, storage)
@@ -465,52 +691,39 @@ function AddRequestToTable(requests, itemName, missingAmount, storage)
 	return itemEntry.requesters[#itemEntry.requesters]
 end
 
-function EvenlyDistributeItems(requests, shouldSort, functionToAddItems)
-	for itemName, requestInfo in pairs(requests) do
-		--Take the required item count from storage or how much storage has
-		local itemCount = RequestItemsFromStorage(itemName, requestInfo.requestedAmount)
-		
-		if itemCount < requestInfo.requestedAmount then
-			--Missing items items of this type so request them
-			local missingItems = requestInfo.requestedAmount - itemCount
-			AddItemToOutputList(itemName, missingItems)
+function EvenlyDistributeItems(request, functionToAddItems)
+	--Take the required item count from storage or how much storage has
+	local itemCount = RequestItemsFromUseableStorage(itemName, request.requestedAmount)
+	
+	if itemCount < request.requestedAmount then
+		--Missing items items of this type so request them
+		local missingItems = request.requestedAmount - itemCount
+		AddItemToOutputList(itemName, missingItems)
+	end
+	
+	--If there isn't enough items to fill all the requests, then the  requests
+	--has to be scaled down in proportion to how much that is missing so all
+	--requests will be filled equally much
+	local itemsToMissingItemsRatio = itemCount / request.requestedAmount
+	
+	--If storage had some of the required item then begin distributing it evenly
+	--in all the requesters
+	if itemCount > 0 then			
+		local chestHold = math.ceil(request.missingAmount * itemsToMissingItemsRatio)
+			
+		--No need to insert 0 of something
+		if chestHold > 0 then
+			--Insert the missing items into the entity and subtract the inserted items from the itemCount
+			local insertedItemsCount = functionToAddItems(request, itemName, chestHold)
+			itemCount = itemCount - insertedItemsCount
 		end
 		
-		--If there isn't enough items to fill all the requests, then the  requests
-		--has to be scaled down in proportion to how much that is missing so all
-		--requests will be filled equally much
-		local itemsToMissingItemsRatio = itemCount / requestInfo.requestedAmount
-		
-		--If storage had some of the required item then begin distributing it evenly
-		--in all the requesters
+		--Give remaining items back to storage
 		if itemCount > 0 then
-			if shouldSort then
-				--To be able to distribute it evenly, the requesters need to be sorted in order of how
-				--much they are missing, so the requester with the least missing of the item will be first.
-				--If this isn't done then there could be items leftover after they have been distributed
-				--even though they could all have been distributed if they had been distributed in order.
-				table.sort(requestInfo.requesters, function(left, right)
-					return left.missingAmount < right.missingAmount
-				end)
-			end
-			
-			for i = 1, #requestInfo.requesters do
-				local chestHold = math.ceil(requestInfo.requesters[i].missingAmount * itemsToMissingItemsRatio)
-				
-				--No need to insert 0 of something
-				if chestHold > 0 then
-					--Insert the missing items into the entity and subtract the inserted items from the itemCount
-					local insertedItemsCount = functionToAddItems(requestInfo.requesters[i], itemName, chestHold)
-					itemCount = itemCount - insertedItemsCount
-				end
-			end
-			
-			--Give remaining items back to storage
-			if itemCount > 0 then
-				GiveItemsToStorage(itemName, itemCount)
-			end
+			GiveItemsToUseableStorage(itemName, itemCount)
 		end
 	end
+
 end
 
 
@@ -782,18 +995,26 @@ end)
 --------------------
 --[[Misc methods]]--
 -------------------- 
-function RequestItemsFromStorage(itemName, itemCount)
+function RequestItemsFromUseableStorage(itemName, itemCount)
 	--if result is nil then there is no items in storage
 	--which means that no items can be given
-	if global.itemStorage[itemName] == nil then
+	if global.useableItemStorage[itemName] == nil then
 		return 0
 	end
 	--if the number of items in storage is lower than the number of items
 	--requested then take the number of items there are left otherwise take the requested amount
-	local itemsTakenFromStorage = math.min(global.itemStorage[itemName], itemCount)
-	global.itemStorage[itemName] = global.itemStorage[itemName] - itemsTakenFromStorage
+	local itemsTakenFromStorage = math.min(global.useableItemStorage[itemName], itemCount)
+	global.useableItemStorage[itemName] = global.useableItemStorage[itemName] - itemsTakenFromStorage
 
 	return itemsTakenFromStorage
+end
+
+function GiveItemsToUseableStorage(itemName, itemCount)
+	--if this is called for the first time for an item then the result
+	--is nil. if that's the case then set the result to 0 so it can
+	--be used in arithmetic operations
+	global.useableItemStorage[itemName] = global.useableItemStorage[itemName] or 0
+	global.useableItemStorage[itemName] = global.useableItemStorage[itemName] + itemCount
 end
 
 function GiveItemsToStorage(itemName, itemCount)
