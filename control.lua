@@ -293,9 +293,9 @@ script.on_event(defines.events.on_tick, function(event)
 			RetrieveGetterRequests(global.allowedToMakeElectricityRequests)
 		elseif global.workTick >= TICKS_TO_COLLECT_REQUESTS and global.workTick < TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS then
 			if global.workTick == TICKS_TO_COLLECT_REQUESTS then
+				UpdateUseableStorage()
 				PrepareToFulfillRequests()
 				ResetFulfillRequestIterators()
-				UpdateUseableStorage()
 			end
 			FulfillGetterRequests(global.allowedToMakeElectricityRequests)
 		end
@@ -341,6 +341,7 @@ end)
 function UpdateUseableStorage()
 	for k, v in pairs(global.itemStorage) do
 		GiveItemsToUseableStorage(k, v)
+		global.useableItemStorage[k].initialItemCount = global.useableItemStorage[k].remainingItems
 	end
 	global.itemStorage = {}
 end
@@ -352,8 +353,10 @@ end
 function ResetRequestGathering()
 	RestartIterator(global.outputChestsData.entitiesData     , TICKS_TO_COLLECT_REQUESTS)
 	global.outputChestsData.requests = {}
+	
 	RestartIterator(global.outputTanksData.entitiesData      , TICKS_TO_COLLECT_REQUESTS)
 	global.outputTanksData.requests = {}
+	
 	RestartIterator(global.outputElectricityData.entitiesData, TICKS_TO_COLLECT_REQUESTS)
 	global.outputElectricityData.requests = {}
 end
@@ -682,32 +685,41 @@ function AddRequestToTable(requests, itemName, missingAmount, storage)
 	return itemEntry.requesters[#itemEntry.requesters]
 end
 
-function EvenlyDistributeItems(request, functionToAddItems)
+function EvenlyDistributeItems(request, functionToInsertItems)
 	--Take the required item count from storage or how much storage has
 	local itemCount = RequestItemsFromUseableStorage(request.itemName, request.requestedAmount)
 	
-	--If there isn't enough items to fill all the requests, then the  requests
-	--has to be scaled down in proportion to how much that is missing so all
-	--requests will be filled equally much
-	local itemsToMissingItemsRatio = itemCount / request.requestedAmount
-	local chestHold = math.ceil(request.missingAmount * itemsToMissingItemsRatio)
+	--need to scale all the requests according to how much of the requested items are available.
+	--Can't be more than 100% because otherwise the chests will overfill
+	local avaiableItemsRatio = math.min(GetInitialItemCount(request.itemName) / request.requestedAmount, 1)
+	--Floor is used here so no chest uses more than its fair share.
+	--If they used more then the last entity would bet less which would be
+	--an issue with +1000 entities requesting items.
+	local chestHold = math.floor(request.missingAmount * avaiableItemsRatio)
+	--If there is less items than requests then floor will return zero and thus not
+	--distributes the remaining items. Thus here the mining is set to 1 but still
+	--it can't be set to 1 if there is no more items to distribute, which is what
+	--the last min corresponds to.
+	chestHold = math.max(chestHold, 1)
+	chestHold = math.min(chestHold, itemCount)
+	
+	--If there wasn't enough items to fulfill the whole request
+	--then ask for more items from outside the game
 	local missingItems = request.missingAmount - chestHold
 	if missingItems > 0 then
-		--Missing items items of this type so request them
 		AddItemToOutputList(request.itemName, missingItems)
 	end
 	
-	--If storage had some of the required item then begin distributing it evenly
-	--in all the requesters
 	if itemCount > 0 then						
 		--No need to insert 0 of something
 		if chestHold > 0 then
-			--Insert the missing items into the entity and subtract the inserted items from the itemCount
-			local insertedItemsCount = functionToAddItems(request, request.itemName, chestHold)
+			local insertedItemsCount = functionToInsertItems(request, request.itemName, chestHold)
 			itemCount = itemCount - insertedItemsCount
 		end
 		
-		--Give remaining items back to storage
+		--In some cases it's possible for the entity to not use up
+		--all the items. 
+		--In those cases the items should be put back into storage.
 		if itemCount > 0 then
 			GiveItemsToUseableStorage(request.itemName, itemCount)
 		end
@@ -992,18 +1004,28 @@ function RequestItemsFromUseableStorage(itemName, itemCount)
 	end
 	--if the number of items in storage is lower than the number of items
 	--requested then take the number of items there are left otherwise take the requested amount
-	local itemsTakenFromStorage = math.min(global.useableItemStorage[itemName], itemCount)
-	global.useableItemStorage[itemName] = global.useableItemStorage[itemName] - itemsTakenFromStorage
+	local itemsTakenFromStorage = math.min(global.useableItemStorage[itemName].remainingItems, itemCount)
+	global.useableItemStorage[itemName].remainingItems = global.useableItemStorage[itemName].remainingItems - itemsTakenFromStorage
 
 	return itemsTakenFromStorage
 end
 
+function GetInitialItemCount(itemName)
+	if global.useableItemStorage[itemName] == nil then
+		return 0
+	end
+	return global.useableItemStorage[itemName].initialItemCount
+end
+
 function GiveItemsToUseableStorage(itemName, itemCount)
-	--if this is called for the first time for an item then the result
-	--is nil. if that's the case then set the result to 0 so it can
-	--be used in arithmetic operations
-	global.useableItemStorage[itemName] = global.useableItemStorage[itemName] or 0
-	global.useableItemStorage[itemName] = global.useableItemStorage[itemName] + itemCount
+	if global.useableItemStorage[itemName] == nil then
+		global.useableItemStorage[itemName] = 
+		{
+			initialItemCount = 0,
+			remainingItems = 0
+		}
+	end
+	global.useableItemStorage[itemName].remainingItems = global.useableItemStorage[itemName].remainingItems + itemCount
 end
 
 function GiveItemsToStorage(itemName, itemCount)
