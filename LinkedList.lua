@@ -49,33 +49,37 @@ end
 
 function RemoveLink(linkedList, dataIdentifier)
 	local link = linkedList.dataIdentifierToLink[dataIdentifier]
-	linkedList.dataIdentifierToLink[dataIdentifier] = nil
-	
-	--Need to link the previous and next link together so they 
-	--circumvent this removed link so the chain isn't broken
-	if link.prevLink ~= nil then
-		link.prevLink.nextLink = link.nextLink
+	--The game can send multiple destroy events for a single entity
+	--sp this method has to support that
+	if link ~= nil then
+		linkedList.dataIdentifierToLink[dataIdentifier] = nil
+		
+		--Need to link the previous and next link together so they 
+		--circumvent this removed link so the chain isn't broken
+		if link.prevLink ~= nil then
+			link.prevLink.nextLink = link.nextLink
+		end
+		if link.nextLink ~= nil then
+			link.nextLink.prevLink = link.prevLink
+		end
+		
+		--Need update the first link and last link because
+		--this link might be one or both of those.
+		if linkedList.firstLink == link then
+			linkedList.firstLink = link.nextLink
+		end
+		if linkedList.lastLink == link then
+			linkedList.lastLink = link.prevLink
+		end
+		
+		--The iterators current link might be this link so to remove it
+		--the iterator should move to the next link
+		if linkedList.iterator.currentLink == link then
+			linkedList.iterator.currentLink = link.nextLink
+		end
+		
+		linkedList.count = linkedList.count - 1
 	end
-	if link.nextLink ~= nil then
-		link.nextLink.prevLink = link.prevLink
-	end
-	
-	--Need update the first link and last link because
-	--this link might be one or both of those.
-	if linkedList.firstLink == link then
-		linkedList.firstLink = link.nextLink
-	end
-	if linkedList.lastLink == link then
-		linkedList.lastLink = link.prevLink
-	end
-	
-	--The iterators current link might be this link so to remove it
-	--the iterator should move to the next link
-	if linkedList.iterator.currentLink == link then
-		linkedList.iterator.currentLink = link.nextLink
-	end
-	
-	linkedList.count = linkedList.count - 1
 end
 
 function RestartIterator(linkedList, ticksToIterateChain)
