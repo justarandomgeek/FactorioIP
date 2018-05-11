@@ -265,7 +265,6 @@ script.on_event(defines.events.on_tick, function(event)
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	global.ticksSinceMasterPinged = 0
 	if global.ticksSinceMasterPinged < 300 then		
 		global.isConnected = true
 		
