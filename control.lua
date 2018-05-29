@@ -187,6 +187,7 @@ function Reset()
 	global.prevIsConnected = false
 	global.allowedToMakeElectricityRequests = false
 	global.workTick = 0
+	global.hasInfiniteResources = false
 
 	if global.config == nil then 
 		global.config = 
@@ -263,6 +264,12 @@ end
 script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
 	HandleTXCombinators()
+	
+	--If the mod isn't connected then still pretend that it's
+	--so items requests and removals can be fulfilled
+	if global.hasInfiniteResources then
+		global.ticksSinceMasterPinged = 0
+	end
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then		
@@ -997,6 +1004,11 @@ end)
 --[[Misc methods]]--
 -------------------- 
 function RequestItemsFromUseableStorage(itemName, itemCount)
+	--if infinite resources then the whole request is approved
+	if global.hasInfiniteResources then
+		return itemCount
+	end
+
 	--if result is nil then there is no items in storage
 	--which means that no items can be given
 	if global.useableItemStorage[itemName] == nil then
@@ -1011,6 +1023,15 @@ function RequestItemsFromUseableStorage(itemName, itemCount)
 end
 
 function GetInitialItemCount(itemName)
+	--this method is used so the mod knows hopw to distribute
+	--the items between all entities. If infinite resources is enabled
+	--then all entities should get their requests fulfilled-
+	--To simulate that this method returns 1mil which should be enough
+	--for all entities to fulfill their whole item request
+	if global.hasInfiniteResources then
+		return 1000000 --1.000.000
+	end
+
 	if global.useableItemStorage[itemName] == nil then
 		return 0
 	end
@@ -1138,13 +1159,32 @@ function toggleMainConfigGui(parent)
 	electricityPane.add{type = "label", name = "clusterio-electricity-label", caption = "Max electricity"}
 	electricityPane.add{type = "textfield", name = "clusterio-electricity-field", text = global.maxElectricity}
 	
+	--Infinity mode button
+	addInfinityModeButton(pane)
+end
+
+function addInfinityModeButton(parent)
+	if global.hasInfiniteResources then
+		parent.add{type = "button", name = "clusterio-infinity-button", caption = "Infinity mode enabled "}
+	else
+		parent.add{type = "button", name = "clusterio-infinity-button", caption = "Infinity mode disabled"}
+	end
 end
 
 function processMainConfigGui(event)
 	if event.element.name == "clusterio-Item-WB-list" then
 		toggleBWItemListGui(game.players[event.player_index].gui.top)
-	else if event.element.name == "clusterio-Fluid-WB-list" then
+	elseif event.element.name == "clusterio-Fluid-WB-list" then
 		toggleBWFluidListGui(game.players[event.player_index].gui.top)
+	elseif event.element.name == "clusterio-infinity-button" then
+		local parent = event.element.parent
+		event.element.destroy()
+		if global.hasInfiniteResources then
+			global.hasInfiniteResources = false
+		else
+			global.hasInfiniteResources = true
+		end
+		addInfinityModeButton(parent)
 	end
 end
 
@@ -1155,7 +1195,7 @@ script.on_event(defines.events.on_gui_checked_state_changed, function(event)
 	
 	if event.element.name == "clusterio-is-fluid-whitelist" then 
 		global.config.fluid_is_whitelist = event.element.state 
-	else if event.element.name == "clusterio-is-item-whitelist" then 
+	elseif event.element.name == "clusterio-is-item-whitelist" then 
 		global.config.item_is_whitelist = event.element.state 
 	end
 end)
@@ -1170,7 +1210,7 @@ script.on_event(defines.events.on_gui_click, function(event)
 	
 	if event.element.parent.name == "clusterio-main-config-gui" then 
 		processMainConfigGui(event)
-	else if event.element.name == "clusterio-main-config-gui-toggle-button" then
+	elseif event.element.name == "clusterio-main-config-gui-toggle-button" then
 		local player = game.players[event.player_index]
 		toggleMainConfigGui(player.gui.top)
 	end
@@ -1186,7 +1226,7 @@ script.on_event(defines.events.on_gui_elem_changed, function(event)
 	
 	if event.element.parent.name == "item-black-white-list" then
 		processElemGui(event,"BWitems")
-	else if event.element.parent.name == "fluid-black-white-list" then
+	elseif event.element.parent.name == "fluid-black-white-list" then
 		processElemGui(event,"BWfluids")
 	end
 end)
