@@ -877,7 +877,8 @@ function UpdateRXCombinators()
     -- no frames to send right now, blank all...
     for i,rxControl in pairs(global.rxControls) do
   		if rxControl.valid then
-  			rxControl.enabled=false
+			rxControl.parameters = {parameters = {}}
+  			rxControl.enabled = false
   		end
   	end
 	end
