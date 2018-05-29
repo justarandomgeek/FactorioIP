@@ -844,12 +844,20 @@ function HandleTXCombinators()
 			local frame = txControl.signals_last_tick
 			if frame then
 				for _,signal in pairs(frame) do
-					signals[signal.signal.type][signal.signal.name]=
-						(signals[signal.signal.type][signal.signal.name] or 0) + signal.count
+					local signalType = signal.signal.type
+					local signalName = signal.signal.name
+					signals[signalType][signalName] = (signals[signalType][signalName] or 0) + signal.count
 				end
 			end
 		end
 	end
+	
+	--Don't send the exact same signals in a row
+	if AreTablesSame(global.oldTXSignals, signals) then
+		global.oldTXSignals = signals
+		return
+	end
+	global.oldTXSignals = signals
 
 	local frame = {}
 	for type,arr in pairs(signals) do
@@ -869,6 +877,43 @@ function HandleTXCombinators()
 		--AddFrameToRXBuffer(frame)
 
 	end
+end
+
+function AreTablesSame(tableA, tableB)
+	if tableA == nil and tableB ~= nil then
+		return false
+	elseif tableA ~= nil and tableB == nil then
+		return false
+	elseif tableA == nil and tableB == nil then
+		return true
+	end
+	
+	if TableWithKeysLength(tableA) ~= TableWithKeysLength(tableB) then
+		return false
+	end
+	
+	for keyA, valueA in pairs(tableA) do
+		local valueB = tableB[keyA]
+		if type(valueA) == "table" and type(valueB) == "table" then
+			if not AreTablesSame(valueA, valueB) then
+				return false
+			end
+		elseif type(valueA) ~= type(valueB) then
+			return false
+		elseif valueA ~= valueB then
+			return false
+		end
+	end
+	
+	return true
+end
+
+function TableWithKeysLength(tableA)
+	local count = 0
+	for k, v in pairs(tableA) do
+		count = count + 1
+	end
+	return count
 end
 
 function UpdateRXCombinators()
