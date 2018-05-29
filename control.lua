@@ -1140,7 +1140,7 @@ script.on_event(defines.events.on_gui_value_changed, function(event)
 	if event.element.name=="clusterio-Placing-Bounding-Box" then
 		global.config.PlacableArea=event.element.slider_value
 		local placeableAreaString = global.config.PlacableArea
-		if placeableAreaString+0 == 0 then placeableAreaString="none" end
+		if placeableAreaString == 0 then placeableAreaString="none" end
 
 		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption="Chest/fluid bounding box: "..placeableAreaString
 	end
