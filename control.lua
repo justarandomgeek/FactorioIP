@@ -94,7 +94,8 @@ function AddEntity(entity)
 			entity = entity,
 			fluidbox = entity.fluidbox
 		}, entity.unit_number)
-		entity.active = false
+		--previous version made then inactive which isn't desired anymore
+		entity.active = true
 	elseif entity.name == TX_COMBINATOR_NAME then
 		global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
 	elseif entity.name == RX_COMBINATOR_NAME then
@@ -187,6 +188,7 @@ function Reset()
 	global.prevIsConnected = false
 	global.allowedToMakeElectricityRequests = false
 	global.workTick = 0
+	global.hasInfiniteResources = false
 
 	if global.config == nil then 
 		global.config = 
@@ -263,6 +265,12 @@ end
 script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
 	HandleTXCombinators()
+	
+	--If the mod isn't connected then still pretend that it's
+	--so items requests and removals can be fulfilled
+	if global.hasInfiniteResources then
+		global.ticksSinceMasterPinged = 0
+	end
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
 	if global.ticksSinceMasterPinged < 300 then		
@@ -869,15 +877,16 @@ function UpdateRXCombinators()
 		local frame = table.remove(global.rxBuffer)
 		for i,rxControl in pairs(global.rxControls) do
 			if rxControl.valid then
-				rxControl.parameters={parameters=frame}
-				rxControl.enabled=true
+				rxControl.parameters = {parameters = frame}
+				rxControl.enabled = true
 			end
 		end
   else
     -- no frames to send right now, blank all...
     for i,rxControl in pairs(global.rxControls) do
   		if rxControl.valid then
-  			rxControl.enabled=false
+			rxControl.parameters = {parameters = {}}
+  			rxControl.enabled = false
   		end
   	end
 	end
@@ -996,6 +1005,11 @@ end)
 --[[Misc methods]]--
 -------------------- 
 function RequestItemsFromUseableStorage(itemName, itemCount)
+	--if infinite resources then the whole request is approved
+	if global.hasInfiniteResources then
+		return itemCount
+	end
+
 	--if result is nil then there is no items in storage
 	--which means that no items can be given
 	if global.useableItemStorage[itemName] == nil then
@@ -1010,6 +1024,15 @@ function RequestItemsFromUseableStorage(itemName, itemCount)
 end
 
 function GetInitialItemCount(itemName)
+	--this method is used so the mod knows hopw to distribute
+	--the items between all entities. If infinite resources is enabled
+	--then all entities should get their requests fulfilled-
+	--To simulate that this method returns 1mil which should be enough
+	--for all entities to fulfill their whole item request
+	if global.hasInfiniteResources then
+		return 1000000 --1.000.000
+	end
+
 	if global.useableItemStorage[itemName] == nil then
 		return 0
 	end
@@ -1065,12 +1088,12 @@ end
 -------------------
 --[[GUI methods]]--
 ------------------- 
-function createElemGui_INTERNAL(pane,guiName,elem_type,loadingList)
-	local gui = pane.add{ type = "table", name = guiName, column_count = 5 }
-	for _,item in pairs(loadingList) do
-		gui.add{type="choose-elem-button",elem_type=elem_type,item=item,fluid=item}
+function createElemGui_INTERNAL(pane, guiName, elem_type, loadingList)
+	local gui = pane.add{type = "table", name = guiName, column_count = 5}
+	for _, item in pairs(loadingList) do
+		gui.add{type = "choose-elem-button", elem_type = elem_type, item = item, fluid = item}
 	end
-	gui.add{type="choose-elem-button",elem_type=elem_type}
+	gui.add{type = "choose-elem-button", elem_type = elem_type}
 end
 
 function toggleBWItemListGui(parent)
@@ -1078,10 +1101,11 @@ function toggleBWItemListGui(parent)
         parent["clusterio-black-white-item-list-config"].destroy()
         return
     end
-	local pane=parent.add{type="frame", name="clusterio-black-white-item-list-config", direction="vertical"}
-	pane.add{type="label",caption="Item"}
-	pane.add{type="checkbox", name="clusterio-is-item-whitelist", caption="whitelist",state=global.config.item_is_whitelist}
-	createElemGui_INTERNAL(pane,"item-black-white-list","item",global.config.BWitems)
+	
+	local pane = parent.add{type = "frame", name = "clusterio-black-white-item-list-config", direction = "vertical"}
+	pane.add{type = "label", caption = "Item"}
+	pane.add{type = "checkbox", name = "clusterio-is-item-whitelist", caption = "whitelist", state = global.config.item_is_whitelist}
+	createElemGui_INTERNAL(pane, "item-black-white-list", "item", global.config.BWitems)
 end
 
 function toggleBWFluidListGui(parent)
@@ -1089,28 +1113,33 @@ function toggleBWFluidListGui(parent)
         parent["clusterio-black-white-fluid-list-config"].destroy()
         return
     end
-	local pane=parent.add{type="frame", name="clusterio-black-white-fluid-list-config", direction="vertical"}
-	pane.add{type="label",caption="Fluid"}
-	pane.add{type="checkbox", name="clusterio-is-fluid-whitelist", caption="whitelist",state=global.config.fluid_is_whitelist}
-	createElemGui_INTERNAL(pane,"fluid-black-white-list","fluid",global.config.BWfluids)
+	
+	local pane = parent.add{type = "frame", name = "clusterio-black-white-fluid-list-config", direction = "vertical"}
+	pane.add{type = "label", caption = "Fluid"}
+	pane.add{type = "checkbox", name = "clusterio-is-fluid-whitelist", caption = "whitelist", state = global.config.fluid_is_whitelist}
+	createElemGui_INTERNAL(pane, "fluid-black-white-list", "fluid", global.config.BWfluids)
 end
 
-function processElemGui(event,toUpdateConfigName)--VERY WIP
-	parent=event.element.parent
-	if event.element.elem_value==nil then event.element.destroy()
-	else parent.add{type="choose-elem-button",elem_type=parent.children[1].elem_type} end
-	global.config[toUpdateConfigName]={}
-	for _,guiElement in pairs(parent.children) do
-		if guiElement.elem_value~=nil then
-			table.insert(global.config[toUpdateConfigName],guiElement.elem_value)
+function processElemGui(event, toUpdateConfigName)--VERY WIP
+	local parent = event.element.parent
+	if event.element.elem_value == nil then 
+		event.element.destroy()
+	else 
+		parent.add{type = "choose-elem-button", elem_type=parent.children[1].elem_type} 
+	end
+	
+	global.config[toUpdateConfigName] = {}
+	for _, guiElement in pairs(parent.children) do
+		if guiElement.elem_value ~= nil then
+			table.insert(global.config[toUpdateConfigName], guiElement.elem_value)
 		end
 	end
 end
 
-script.on_event(defines.events.on_gui_value_changed,function(event) 
-	if event.element.name=="clusterio-Placing-Bounding-Box" then 
-		global.config.PlacableArea=event.element.slider_value 
-		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption="Chest/fluid bounding box: "..global.config.PlacableArea
+script.on_event(defines.events.on_gui_value_changed, function(event) 
+	if event.element.name == "clusterio-Placing-Bounding-Box" then 
+		global.config.PlacableArea = event.element.slider_value 
+		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption = "Chest/fluid bounding box: "..global.config.PlacableArea
 	end 
 end)
 
@@ -1119,64 +1148,94 @@ function toggleMainConfigGui(parent)
         parent["clusterio-main-config-gui"].destroy()
         return
     end
-	local pane = parent.add{type="frame", name="clusterio-main-config-gui", direction="vertical"}
-	pane.add{type="button", name="clusterio-Item-WB-list", caption="Item White/Black list"}
-    pane.add{type="button", name="clusterio-Fluid-WB-list", caption="Fluid White/Black list"}
-	pane.add{type="label", caption="Chest/fluid bounding box: "..global.config.PlacableArea,name="clusterio-Placing-Bounding-Box-Label"}
-	pane.add{type="slider", name="clusterio-Placing-Bounding-Box",minimum_value=0,maximum_value=800,value=global.config.PlacableArea}
+	
+	local pane = parent.add{type = "frame", name = "clusterio-main-config-gui", direction = "vertical"}
+	pane.add{type = "button", name = "clusterio-Item-WB-list", caption = "Item White/Black list"}
+    pane.add{type = "button", name = "clusterio-Fluid-WB-list", caption = "Fluid White/Black list"}
+	pane.add{type = "label" , name = "clusterio-Placing-Bounding-Box-Label", caption = "Chest/fluid bounding box: "..global.config.PlacableArea}
+	pane.add{type = "slider", name = "clusterio-Placing-Bounding-Box", minimum_value = 0, maximum_value = 800, value = global.config.PlacableArea}
 	
 	--Electricity panel
-	local electricityPane = pane.add{type="frame", name="clusterio-main-config-gui", direction="horizontal"}
-	electricityPane.add{type="label", name="clusterio-electricity-label", caption="Max electricity"}
-	electricityPane.add{type="textfield", name="clusterio-electricity-field", text = global.maxElectricity}
+	local electricityPane = pane.add{type = "frame", name = "clusterio-main-config-gui", direction = "horizontal"}
+	electricityPane.add{type = "label", name = "clusterio-electricity-label", caption = "Max electricity"}
+	electricityPane.add{type = "textfield", name = "clusterio-electricity-field", text = global.maxElectricity}
 	
+	--Infinity mode button
+	addInfinityModeButton(pane)
+end
+
+function addInfinityModeButton(parent)
+	if global.hasInfiniteResources then
+		parent.add{type = "button", name = "clusterio-infinity-button", caption = "Infinity mode enabled "}
+	else
+		parent.add{type = "button", name = "clusterio-infinity-button", caption = "Infinity mode disabled"}
+	end
 end
 
 function processMainConfigGui(event)
-	if event.element.name=="clusterio-Item-WB-list" then
+	if event.element.name == "clusterio-Item-WB-list" then
 		toggleBWItemListGui(game.players[event.player_index].gui.top)
-	end
-	if event.element.name=="clusterio-Fluid-WB-list" then
+	elseif event.element.name == "clusterio-Fluid-WB-list" then
 		toggleBWFluidListGui(game.players[event.player_index].gui.top)
+	elseif event.element.name == "clusterio-infinity-button" then
+		local parent = event.element.parent
+		event.element.destroy()
+		if global.hasInfiniteResources then
+			global.hasInfiniteResources = false
+		else
+			global.hasInfiniteResources = true
+		end
+		addInfinityModeButton(parent)
 	end
 end
 
 script.on_event(defines.events.on_gui_checked_state_changed, function(event) 
-	if not (event.element.parent) then return end
-	if event.element.name=="clusterio-is-fluid-whitelist" then 
-		global.config.fluid_is_whitelist=event.element.state 
-		return
+	if not (event.element.parent) then 
+		return 
 	end
-	if event.element.name=="clusterio-is-item-whitelist" then 
-		global.config.item_is_whitelist=event.element.state 
-		return
+	
+	if event.element.name == "clusterio-is-fluid-whitelist" then 
+		global.config.fluid_is_whitelist = event.element.state 
+	elseif event.element.name == "clusterio-is-item-whitelist" then 
+		global.config.item_is_whitelist = event.element.state 
 	end
 end)
 	
 script.on_event(defines.events.on_gui_click, function(event)
-	if not (event.element and event.element.valid) then return end
-	if not (event.element.parent) then return end
-	local player = game.players[event.player_index]
-	if event.element.parent.name=="clusterio-main-config-gui" then processMainConfigGui(event) return end
-	if event.element.name=="clusterio-main-config-gui-toggle-button" then toggleMainConfigGui(game.players[event.player_index].gui.top) return end
+	if not (event.element and event.element.valid) then 
+		return 
+	end
+	if not (event.element.parent) then 
+		return 
+	end
+	
+	if event.element.parent.name == "clusterio-main-config-gui" then 
+		processMainConfigGui(event)
+	elseif event.element.name == "clusterio-main-config-gui-toggle-button" then
+		local player = game.players[event.player_index]
+		toggleMainConfigGui(player.gui.top)
+	end
 end)
 
 script.on_event(defines.events.on_gui_elem_changed, function(event)
-	if not (event.element and event.element.valid) then return end
-	if not (event.element.parent) then return end
-	
-	if event.element.parent.name=="item-black-white-list" then
-		processElemGui(event,"BWitems")
-		return
+	if not (event.element and event.element.valid) then 
+		return 
 	end
-	if event.element.parent.name=="fluid-black-white-list" then
+	if not (event.element.parent) then 
+		return 
+	end
+	
+	if event.element.parent.name == "item-black-white-list" then
+		processElemGui(event,"BWitems")
+	elseif event.element.parent.name == "fluid-black-white-list" then
 		processElemGui(event,"BWfluids")
-		return
 	end
 end)
 
 script.on_event(defines.events.on_gui_text_changed, function(event)
-	if not (event.element and event.element.valid) then return end
+	if not (event.element and event.element.valid) then 
+		return 
+	end
 	
 	if event.element.name == "clusterio-electricity-field" then
 		local newMax = tonumber(event.element.text)
@@ -1188,8 +1247,8 @@ end)
 
 function makeConfigButton(parent)
 	if not parent["clusterio-main-config-gui-button"] then
-		local pane = parent.add{type="frame", name="clusterio-main-config-gui-button", direction="vertical"}
-		pane.add{type="button", name="clusterio-main-config-gui-toggle-button", caption="config"}
+		local pane = parent.add{type = "frame", name = "clusterio-main-config-gui-button", direction = "vertical"}
+		pane.add{type = "button", name = "clusterio-main-config-gui-toggle-button", caption = "config"}
     end
 end
 
