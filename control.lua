@@ -94,7 +94,8 @@ function AddEntity(entity)
 			entity = entity,
 			fluidbox = entity.fluidbox
 		}, entity.unit_number)
-		entity.active = false
+		--previous version made then inactive which isn't desired anymore
+		entity.active = true
 	elseif entity.name == TX_COMBINATOR_NAME then
 		global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
 	elseif entity.name == RX_COMBINATOR_NAME then
