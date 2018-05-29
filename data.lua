@@ -295,11 +295,13 @@ data:extend({
 		enabled = true,
 		ingredients =
 		{
-			{"accumulator", 100},
-			{"electronic-circuit", 50}
+			{"accumulator", 2000},
+			{"advanced-circuit", 50},
+			{"substation", 50},
+			{"satellite", 1}
 		},
 		result = INPUT_ELECTRICITY_NAME,
-		requester_paste_multiplier = 4
+		requester_paste_multiplier = 1
 	},
 	{
 		type = "item",
@@ -310,7 +312,7 @@ data:extend({
 		subgroup = "electric-subgroup",
 		order = "a[items]-b["..INPUT_ELECTRICITY_NAME.."]",
 		place_result = INPUT_ELECTRICITY_NAME,
-		stack_size = 50
+		stack_size = 5
 	},
 	getElectricity,
 	{
@@ -319,11 +321,13 @@ data:extend({
 		enabled = true,
 		ingredients =
 		{
-			{"accumulator", 100},
-			{"electronic-circuit", 50}
+			{"accumulator", 2000},
+			{"advanced-circuit", 50},
+			{"substation", 50},
+			{"satellite", 1}
 		},
 		result = OUTPUT_ELECTRICITY_NAME,
-		requester_paste_multiplier = 4
+		requester_paste_multiplier = 1
 	},
 	{
 		type = "item",
@@ -334,7 +338,7 @@ data:extend({
 		subgroup = "electric-subgroup",
 		order = "a[items]-b["..OUTPUT_ELECTRICITY_NAME.."]",
 		place_result = OUTPUT_ELECTRICITY_NAME,
-		stack_size = 50
+		stack_size = 5
 	}
 })
 

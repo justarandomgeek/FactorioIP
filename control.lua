@@ -1,6 +1,10 @@
 require("config")
+require("LinkedList")
 local json = require("json")
 
+------------------------------------------------------------
+--[[Method that handle creation and deletion of entities]]--
+------------------------------------------------------------ 
 function OnBuiltEntity(event)
 	local entity = event.created_entity
 	if not (entity and entity.valid) then return end
@@ -47,9 +51,14 @@ function OnBuiltEntity(event)
 	end
 end
 
-function AddAllEntitiesOfName(name)
+function AddAllEntitiesOfNames(names)
+	local filters = {}
+	for i = 1, #names do
+		local name = names[i]
+		filters[#filters + 1] = {name = name}
+	end
 	for k, surface in pairs(game.surfaces) do
-		AddEntities(surface.find_entities_filtered({["name"] = name}))
+		AddEntities(surface.find_entities_filtered(filters))
 	end
 end
 
@@ -62,16 +71,29 @@ end
 function AddEntity(entity)
 	if entity.name == INPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.inputChests[entity.unit_number] = entity
+		AddLink(global.inputChestsData.entitiesData, {
+			entity = entity,
+			inv = entity.get_inventory(defines.inventory.chest)
+		}, entity.unit_number)
 	elseif entity.name == OUTPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.outputChests[entity.unit_number] = entity
+		AddLink(global.outputChestsData.entitiesData, {
+			entity = entity, 
+			inv = entity.get_inventory(defines.inventory.chest),
+			filterCount = entity.prototype.filter_count
+		}, entity.unit_number)
 	elseif entity.name == INPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.inputTanks[entity.unit_number] = entity
+		AddLink(global.inputTanksData.entitiesData, {
+			entity = entity,
+			fluidbox = entity.fluidbox
+		}, entity.unit_number)
 	elseif entity.name == OUTPUT_TANK_NAME then
 		--add the chests to a lists if these chests so they can be interated over
-		global.outputTanks[entity.unit_number] = entity
+		AddLink(global.outputTanksData.entitiesData, {
+			entity = entity,
+			fluidbox = entity.fluidbox
+		}, entity.unit_number)
 		entity.active = false
 	elseif entity.name == TX_COMBINATOR_NAME then
 		global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
@@ -82,9 +104,12 @@ function AddEntity(entity)
 		global.invControls[entity.unit_number] = entity.get_or_create_control_behavior()
 		entity.operable=false
 	elseif entity.name == INPUT_ELECTRICITY_NAME then
-		global.inputElectricity[entity.unit_number] = entity
+		AddLink(global.inputElectricityData.entitiesData, entity, entity.unit_number)
 	elseif entity.name == OUTPUT_ELECTRICITY_NAME then
-		global.outputElectricity[entity.unit_number] = entity
+		AddLink(global.outputElectricityData.entitiesData, {
+			entity = entity,
+			bufferSize = entity.electric_buffer_size
+		}, entity.unit_number)
 	end
 end
 
@@ -93,13 +118,13 @@ function OnKilledEntity(event)
 	if entity.type ~= "entity-ghost" then
 		--remove the entities from the tables as they are dead
 		if entity.name == INPUT_CHEST_NAME then
-			global.inputChests[entity.unit_number] = nil
+			RemoveLink(global.inputChestsData.entitiesData, entity.unit_number)
 		elseif entity.name == OUTPUT_CHEST_NAME then
-			global.outputChests[entity.unit_number] = nil
+			RemoveLink(global.outputChestsData.entitiesData, entity.unit_number)
 		elseif entity.name == INPUT_TANK_NAME then
-			global.inputTanks[entity.unit_number] = nil
+			RemoveLink(global.inputTanksData.entitiesData, entity.unit_number)
 		elseif entity.name == OUTPUT_TANK_NAME then
-			global.outputTanks[entity.unit_number] = nil
+			RemoveLink(global.outputTanksData.entitiesData, entity.unit_number)
 		elseif entity.name == TX_COMBINATOR_NAME then
 			global.txControls[entity.unit_number] = nil
 		elseif entity.name == RX_COMBINATOR_NAME then
@@ -107,35 +132,45 @@ function OnKilledEntity(event)
 		elseif entity.name == INV_COMBINATOR_NAME then
 			global.invControls[entity.unit_number] = nil
 		elseif entity.name == INPUT_ELECTRICITY_NAME then
-			global.inputElectricity[entity.unit_number] = nil
+			RemoveLink(global.inputElectricityData.entitiesData, entity.unit_number)
 		elseif entity.name == OUTPUT_ELECTRICITY_NAME then
-			global.outputElectricity[entity.unit_number] = nil
+			RemoveLink(global.outputElectricityData.entitiesData, entity.unit_number)
 		end
 	end
 end
 
---[[ Thing Creation Events ]]--
+
+-----------------------------
+--[[Thing creation events]]--
+----------------------------- 
 script.on_event(defines.events.on_built_entity, function(event)
 	OnBuiltEntity(event)
 end)
+
 script.on_event(defines.events.on_robot_built_entity, function(event)
 	OnBuiltEntity(event)
 end)
 
 
-
---[[ Thing Killing Events ]]--
+----------------------------
+--[[Thing killing events]]--
+---------------------------- 
 script.on_event(defines.events.on_entity_died, function(event)
 	OnKilledEntity(event)
 end)
+
 script.on_event(defines.events.on_robot_pre_mined, function(event)
 	OnKilledEntity(event)
 end)
+
 script.on_event(defines.events.on_pre_player_mined_item, function(event)
 	OnKilledEntity(event)
 end)
 
 
+------------------------------
+--[[Thing resetting events]]--
+------------------------------ 
 script.on_init(function()
 	Reset()
 end)
@@ -146,259 +181,555 @@ script.on_configuration_changed(function(data)
 	end
 end)
 
+function Reset()
+	global.ticksSinceMasterPinged = 601
+	global.isConnected = false
+	global.prevIsConnected = false
+	global.allowedToMakeElectricityRequests = false
+	global.workTick = 0
+
+	if global.config == nil then 
+		global.config = 
+		{
+			BWitems = {},
+			item_is_whitelist = false,
+			BWfluids = {},
+			fluid_is_whitelist = false,
+			PlacableArea = 200
+		}
+	end
+	if global.invdata == nil then 
+		global.invdata = {} 
+	end
+	
+	global.outputList = {}
+	global.inputList = {}
+	global.itemStorage = {}
+	global.useableItemStorage = {}
+
+	global.inputChestsData = 
+	{
+		entitiesData = CreateDoublyLinkedList()
+	}
+	global.outputChestsData = 
+	{
+		entitiesData = CreateDoublyLinkedList(),
+		requests = {},
+		requestsLL = nil
+	}
+
+	global.inputTanksData = 
+	{
+		entitiesData = CreateDoublyLinkedList()
+	}
+	global.outputTanksData = 
+	{
+		entitiesData = CreateDoublyLinkedList(),
+		requests = {},
+		requestsLL = nil
+	}
+	
+	global.inputElectricityData = 
+	{
+		entitiesData = CreateDoublyLinkedList()
+	}
+	global.outputElectricityData = 
+	{
+		entitiesData = CreateDoublyLinkedList(),
+		requests = {},
+		requestsLL = nil
+	}
+	global.lastElectricityUpdate = 0
+	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ assuming a ratio of 1.000.000
+
+	global.rxControls = {}
+	global.txControls = {}
+	global.invControls = {}
+
+	AddAllEntitiesOfNames(
+	{
+		INPUT_CHEST_NAME,
+		OUTPUT_CHEST_NAME,
+		INPUT_TANK_NAME,
+		OUTPUT_TANK_NAME,
+		RX_COMBINATOR_NAME,
+		TX_COMBINATOR_NAME,
+		INV_COMBINATOR_NAME,
+		INPUT_ELECTRICITY_NAME,
+		OUTPUT_ELECTRICITY_NAME
+	})
+end
+
 script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
 	HandleTXCombinators()
 	
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	if global.ticksSinceMasterPinged < 300 then
-		local todo = game.tick % UPDATE_RATE
-		local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
-		if todo == 0 then
-			HandleInputChests()
-		elseif todo == 1 then
-			HandleInputTanks()
-		elseif todo == 2 then
-			HandleOutputChests()
-		elseif todo == 3 then
-			HandleOutputTanks()
-		elseif todo == 4 then
-			HandleInputElectricity()
-		--importing electricity should be limited because it requests so
-		--much at once. If it wasn't limited then the electricity could
-		--make small burst of requests which requests >10x more than it needs
-		--which could temporarily starve other networks.
-		--Updating every 4 seconds give two chances to give electricity in
-		--the 10 second period.
-		elseif todo == 5 and timeSinceLastElectricityUpdate >= 60 * 4 then -- only update ever 4 seconds
-			HandleOutputElectricity()
-			global.lastElectricityUpdate = game.tick
-		elseif todo == 6 then
-			ExportInputList()
-		elseif todo == 7 then
-			ExportOutputList()
-		elseif todo == 8 then
-			ExportFluidFlows()
-		elseif todo == 9 then
-			ExportItemFlows()
+	if global.ticksSinceMasterPinged < 300 then		
+		global.isConnected = true
+		
+		
+		if global.prevIsConnected == false then
+			global.workTick = 0
 		end
+	
+		if global.workTick == 0 then
+			--importing electricity should be limited because it requests so
+			--much at once. If it wasn't limited then the electricity could
+			--make small burst of requests which requests >10x more than it needs
+			--which could temporarily starve other networks.
+			--Updating every 4 seconds give two chances to give electricity in
+			--the 10 second period.
+			local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
+			global.allowedToMakeElectricityRequests = timeSinceLastElectricityUpdate > 60 * 3.5
+		end		
+		
+		--First retrieve requests and then fulfill them
+		if global.workTick >= 0 and global.workTick < TICKS_TO_COLLECT_REQUESTS then
+			if global.workTick == 0 then
+				ResetRequestGathering()
+			end
+			RetrieveGetterRequests(global.allowedToMakeElectricityRequests)
+		elseif global.workTick >= TICKS_TO_COLLECT_REQUESTS and global.workTick < TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS then
+			if global.workTick == TICKS_TO_COLLECT_REQUESTS then
+				UpdateUseableStorage()
+				PrepareToFulfillRequests()
+				ResetFulfillRequestIterators()
+			end
+			FulfillGetterRequests(global.allowedToMakeElectricityRequests)
+		end
+		
+		--Emptying putters will continiously happen
+		--while requests are gathered and fulfilled
+		if global.workTick >= 0 and global.workTick < TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS then
+			if global.workTick == 0 then
+				ResetPutterIterators()
+			end
+			EmptyPutters()
+		end
+		
+		if     global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 0 then
+			ExportInputList()
+			global.workTick = global.workTick + 1
+		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 1 then
+			ExportOutputList()
+			global.workTick = global.workTick + 1
+		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 2 then
+			ExportFluidFlows()
+			global.workTick = global.workTick + 1
+		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 3 then
+			ExportItemFlows()
+			
+			--Restart loop
+			global.workTick = 0
+			if global.allowedToMakeElectricityRequests then
+				global.lastElectricityUpdate = game.tick
+			end
+		else
+			global.workTick = global.workTick + 1
+		end
+	else
+		global.isConnected = false
 	end
+	global.prevIsConnected = global.isConnected
 
 	-- RX Combinators are set and then cleared on sequential ticks to create pulses
 	UpdateRXCombinators()
 end)
 
-function ExportItemFlows()
-	local flowreport = {type="item",flows={}}
-
-	for _,force in pairs(game.forces) do
-		flowreport.flows[force.name] = {
-			input_counts = force.item_production_statistics.input_counts,
-			output_counts = force.item_production_statistics.output_counts,
-		}
+function UpdateUseableStorage()
+	for k, v in pairs(global.itemStorage) do
+		GiveItemsToUseableStorage(k, v)
+		global.useableItemStorage[k].initialItemCount = global.useableItemStorage[k].remainingItems
 	end
-
-	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
-end
-
-function ExportFluidFlows()
-	local flowreport = {type="fluid",flows={}}
-
-	for _,force in pairs(game.forces) do
-		flowreport.flows[force.name] = {
-			input_counts = force.fluid_production_statistics.input_counts,
-			output_counts = force.fluid_production_statistics.output_counts,
-		}
-	end
-
-	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
-end
-
-function Reset()
-	global.ticksSinceMasterPinged = 601
-
-	if global.config==nil then global.config={BWitems={},item_is_whitelist=false,BWfluids={},fluid_is_whitelist=false,PlacableArea=400} end
-	if global.invdata==nil then global.invdata={} end
-	
-	global.outputList = {}
-	global.inputList = {}
 	global.itemStorage = {}
+end
 
-	global.inputChests = {}
-	global.outputChests = {}
 
-	global.inputTanks = {}
-	global.outputTanks = {}
-
-	global.rxControls = {}
-	global.txControls = {}
-	global.invControls = {}
+----------------------------------------
+--[[Getter and setter update methods]]--
+---------------------------------------- 
+function ResetRequestGathering()
+	RestartIterator(global.outputChestsData.entitiesData     , TICKS_TO_COLLECT_REQUESTS)
+	global.outputChestsData.requests = {}
 	
-	global.inputElectricity = {}
-	global.outputElectricity = {}
-	global.lastElectricityUpdate = 0
-	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ
-
-	AddAllEntitiesOfName(INPUT_CHEST_NAME)
-	AddAllEntitiesOfName(OUTPUT_CHEST_NAME)
-
-	AddAllEntitiesOfName(INPUT_TANK_NAME)
-	AddAllEntitiesOfName(OUTPUT_TANK_NAME)
-
-	AddAllEntitiesOfName(RX_COMBINATOR_NAME)
-	AddAllEntitiesOfName(TX_COMBINATOR_NAME)
-	AddAllEntitiesOfName(INV_COMBINATOR_NAME)
+	RestartIterator(global.outputTanksData.entitiesData      , TICKS_TO_COLLECT_REQUESTS)
+	global.outputTanksData.requests = {}
 	
-	AddAllEntitiesOfName(INPUT_ELECTRICITY_NAME)
-	AddAllEntitiesOfName(OUTPUT_ELECTRICITY_NAME)
+	RestartIterator(global.outputElectricityData.entitiesData, TICKS_TO_COLLECT_REQUESTS)
+	global.outputElectricityData.requests = {}
 end
 
-function HandleInputChests()
-	for k, v in pairs(global.inputChests) do
-		if v.valid then
-			--get the content of the chest
-			local items = v.get_inventory(defines.inventory.chest).get_contents()
-			local inventory=v.get_inventory(defines.inventory.chest)
-			--write everything to the file
-			for itemName, itemCount in pairs(items) do
-				if isItemLegal(itemName) then
-					AddItemToInputList(itemName, itemCount)
-					inventory.remove({name=itemName,count=itemCount})
+function ResetFulfillRequestIterators()
+	RestartIterator(global.outputChestsData.requestsLL     , TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.outputTanksData.requestsLL      , TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.outputElectricityData.requestsLL, TICKS_TO_FULFILL_REQUESTS)
+end
+
+function ResetPutterIterators()
+	RestartIterator(global.inputChestsData.entitiesData     , TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.inputTanksData.entitiesData      , TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+	RestartIterator(global.inputElectricityData.entitiesData, TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS)
+end
+
+function PrepareToFulfillRequests()
+	global.outputChestsData.requestsLL      = ArrayToLinkedListOfRequests(global.outputChestsData.requests     , true)
+	global.outputTanksData.requestsLL       = ArrayToLinkedListOfRequests(global.outputTanksData.requests      , false)
+	global.outputElectricityData.requestsLL = ArrayToLinkedListOfRequests(global.outputElectricityData.requests, false)
+end
+
+function RetrieveGetterRequests(allowedToGetElectricityRequests)	
+	local chestLL = global.outputChestsData.entitiesData
+	for i = 1, chestLL.iterator.linksPerTick do
+		local nextLink = NextLink(chestLL)
+		if nextLink ~= nil then
+			GetOutputChestRequest(global.outputChestsData.requests, nextLink.data)
+		end
+	end
+	
+	local tankLL = global.outputTanksData.entitiesData
+	for i = 1, tankLL.iterator.linksPerTick do
+		local nextLink = NextLink(tankLL)
+		if nextLink ~= nil then
+			GetOutputTankRequest(global.outputTanksData.requests, nextLink.data)
+		end
+	end
+	
+	if allowedToGetElectricityRequests then
+		local electricityLL = global.outputElectricityData.entitiesData
+		for i = 1, electricityLL.iterator.linksPerTick do
+			local nextLink = NextLink(electricityLL)
+			if nextLink ~= nil then
+				GetOutputElectricityRequest(global.outputElectricityData.requests, nextLink.data)
+			end
+		end
+	end
+end
+
+function FulfillGetterRequests(allowedToGetElectricityRequests)
+	local chestLL = global.outputChestsData.requestsLL
+	for i = 1, chestLL.iterator.linksPerTick do
+		local nextLink = NextLink(chestLL)
+		if nextLink ~= nil then
+			FulfillOutputChestRequest(nextLink.data)
+		end
+	end
+	
+	local tankLL = global.outputTanksData.requestsLL
+	for i = 1, tankLL.iterator.linksPerTick do
+		local nextLink = NextLink(tankLL)
+		if nextLink ~= nil then
+			FulfillOutputTankRequest(nextLink.data)
+		end
+	end
+	
+	if allowedToGetElectricityRequests then
+		local electricityLL = global.outputElectricityData.requestsLL
+		for i = 1, electricityLL.iterator.linksPerTick do
+			local nextLink = NextLink(electricityLL)
+			if nextLink ~= nil then
+				FulfillOutputElectricityRequest(nextLink.data)
+			end
+		end
+	end
+end
+
+function EmptyPutters()
+	local chestLL = global.inputChestsData.entitiesData
+	for i = 1, chestLL.iterator.linksPerTick do
+		local nextLink = NextLink(chestLL)
+		if nextLink ~= nil then
+			HandleInputChest(nextLink.data)
+		end
+	end
+	
+	local tankLL = global.inputTanksData.entitiesData
+	for i = 1, tankLL.iterator.linksPerTick do
+		local nextLink = NextLink(tankLL)
+		if nextLink ~= nil then
+			HandleInputTank(nextLink.data)
+		end
+	end
+	
+	local electricityLL = global.inputElectricityData.entitiesData
+	for i = 1, electricityLL.iterator.linksPerTick do
+		local nextLink = NextLink(electricityLL)
+		if nextLink ~= nil then
+			HandleInputElectricity(nextLink.data)
+		end
+	end
+end
+
+
+function HandleInputChest(entityData)
+	local entity = entityData.entity
+	local inventory = entityData.inv
+	if entity.valid then
+		--get the content of the chest
+		local items = inventory.get_contents()
+		--write everything to the file
+		for itemName, itemCount in pairs(items) do
+			if isItemLegal(itemName) then
+				AddItemToInputList(itemName, itemCount)
+				inventory.remove({name = itemName, count = itemCount})
+			end
+		end
+	end
+end
+
+function HandleInputTank(entityData)
+	local entity  = entityData.entity
+	local fluidbox = entityData.fluidbox
+	if entity.valid then
+		--get the content of the chest
+		local fluid = fluidbox[1]
+		if fluid ~= nil and math.floor(fluid.amount) > 0 then
+			if isFluidLegal(fluid.name) then
+				AddItemToInputList(fluid.name, math.floor(fluid.amount))
+				fluid.amount = fluid.amount - math.floor(fluid.amount)
+			end
+		end
+		fluidbox[1] = fluid
+	end
+end
+
+function HandleInputElectricity(entity)
+	--if there is too much energy in the network then stop outputting more
+	if global.invdata and global.invdata[ELECTRICITY_ITEM_NAME] and global.invdata[ELECTRICITY_ITEM_NAME] >= global.maxElectricity then
+		return
+	end
+	
+	if entity.valid then
+		local energy = entity.energy
+		local availableEnergy = math.floor(energy / ELECTRICITY_RATIO)
+		if availableEnergy > 0 then
+			AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
+			entity.energy = energy - (availableEnergy * ELECTRICITY_RATIO)
+		end
+	end
+end
+
+function GetOutputChestRequest(requests, entityData)
+	local entity = entityData.entity
+	local chestInventory = entityData.inv
+	local filterCount = entityData.filterCount
+	--Don't insert items into the chest if it's being deconstructed
+	--as that just leads to unnecessary bot work
+	if entity.valid and not entity.to_be_deconstructed(entity.force) then
+		--Go though each request slot
+		for i = 1, filterCount do
+			local requestItem = entity.get_request_slot(i)
+			
+			--Some request slots may be empty and some items are not allowed
+			--to be imported
+			if requestItem ~= nil and isItemLegal(requestItem.name) then
+				local itemsInChest = chestInventory.get_item_count(requestItem.name)
+
+				--If there isn't enough items in the chest
+				local missingAmount = requestItem.count - itemsInChest
+				if missingAmount > 0 then
+					local entry = AddRequestToTable(requests, requestItem.name, missingAmount, entity)
+					entry.inv = chestInventory
 				end
 			end
 		end
 	end
 end
 
-function HandleInputTanks()
-	for k, v in pairs(global.inputTanks) do
-		if v.valid then
-			--get the content of the chest
-			local fluid = v.fluidbox[1]
-			if fluid ~= nil and math.floor(fluid.amount) > 0 then
-				if isFluidLegal(fluid.name) then
-					AddItemToInputList(fluid.name, math.floor(fluid.amount))
-					fluid.amount = fluid.amount - math.floor(fluid.amount)
-				end
-			end
-			v.fluidbox[1] = fluid
-		end
-	end
-end
+function GetOutputTankRequest(requests, entityData)
+	local entity = entityData.entity
+	local fluidbox = entityData.fluidbox
+	--The type of fluid the tank should output
+	--is determined by the recipe set in the  entity.
+	--If no recipe is set then it shouldn't output anything
+	local recipe = entity.get_recipe()
+	if entity.valid and recipe ~= nil then
+		--Get name of the fluid to output
+		local fluidName = recipe.products[1].name
+		--Some fluids may be illegal. If that's the case then don't process them
+		if isFluidLegal(fluidName) then
+			--Either get the current fluid or reset it to the requested fluid
+			local fluid = fluidbox[1] or {name = fluidName, amount = 0}
 
-function HandleInputElectricity()
-	if global.invdata and global.invdata[ELECTRICITY_ITEM_NAME] and global.invdata[ELECTRICITY_ITEM_NAME] < global.maxElectricity then
-		for k, entity in pairs(global.inputElectricity) do
-			if entity.valid then
-				local availableEnergy = math.floor(entity.energy / ELECTRICITY_RATIO)
-				if availableEnergy > 0 then
-					AddItemToInputList(ELECTRICITY_ITEM_NAME, availableEnergy)
-					entity.energy = entity.energy - (availableEnergy * ELECTRICITY_RATIO)
-				end
-			end
-		end
-	end
-end
-
-function HandleOutputChests()
-	local simpleItemStack = {}
-	for k, v in pairs(global.outputChests) do
-		if v.valid and not v.to_be_deconstructed(v.force) then
-			--get the inventory here once for faster execution
-			local chestInventory = v.get_inventory(defines.inventory.chest)
-			for i = 1, 12 do
-				--the item the chest wants
-				local requestItem = v.get_request_slot(i)
-				if requestItem ~= nil then
-					if isItemLegal(requestItem.name) then
-						local itemsInChest = chestInventory.get_item_count(requestItem.name)
-						--if there isn't enough items in the chest
-						if itemsInChest < requestItem.count then
-							local additionalItemRequiredCount = requestItem.count - itemsInChest
-							local itemCountAllowedToInsert = RequestItemsFromStorage(requestItem.name, additionalItemRequiredCount)
-							if itemCountAllowedToInsert > 0 then
-								simpleItemStack.name = requestItem.name
-								simpleItemStack.count = itemCountAllowedToInsert
-								--insert the missing items
-								local insertedItemsCount = chestInventory.insert(simpleItemStack)
-								local itemsNotInsertedCount = itemCountAllowedToInsert - insertedItemsCount
-
-								if itemsNotInsertedCount > 0 then
-									GiveItemsToStorage(requestItem.name, itemsNotInsertedCount)
-								end
-							else
-								local missingItems = additionalItemRequiredCount - itemCountAllowedToInsert
-								AddItemToOutputList(requestItem.name, missingItems)
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-end
-
-function HandleOutputTanks()
-	 for k,v in pairs(global.outputTanks) do
-		--.recipe.products[1].name
-		if v.get_recipe() ~= nil then
-			local fluidName = v.get_recipe().products[1].name
-
-			--either get the fluid or reset it to the requested fluid
-			local fluid = v.fluidbox[1] or {name = fluidName, amount = 0}
+			--If the current fluid isn't the correct fluid
+			--then remove that fluid
 			if fluid.name ~= fluidName then
 				fluid = {name = fluidName, amount = 0}
 			end
 
-			--if any fluid is missing then request the fluid
-			--from store and give either what it's missing or
-			--the rest of the liquid in the system
 			local missingFluid = math.max(math.ceil(MAX_FLUID_AMOUNT - fluid.amount), 0)
-			if missingFluid > 0 and isFluidLegal(fluidName)then
-				local fluidToInsert = RequestItemsFromStorage(fluidName, missingFluid)
-				if fluidToInsert > 0 then
-					fluid.amount = fluid.amount + fluidToInsert
-					if fluid.name == "steam" then
-						fluid.temperature = 165
-					end
-				else
-					local fluidToRequestAmount = missingFluid - fluidToInsert
-					AddItemToOutputList(fluid.name, fluidToRequestAmount)
-				end
-			end
-
-		v.fluidbox[1] = fluid
-		end
-	end
-end
-
-function HandleOutputElectricity()
-	for k, entity in pairs(global.outputElectricity) do
-		if entity.valid then
-			local missingElectricity = math.floor(entity.electric_buffer_size - entity.energy)
-			if missingElectricity > 0 then
-				local receivedElectricity = RequestItemsFromStorage(ELECTRICITY_ITEM_NAME, missingElectricity)
-				if receivedElectricity > 0 then
-					entity.energy = entity.energy + (receivedElectricity * ELECTRICITY_RATIO)
-				else
-					AddItemToOutputList(ELECTRICITY_ITEM_NAME, missingElectricity / ELECTRICITY_RATIO)
-				end
+			--If the entity is missing fluid than add a request for fluid
+			if missingFluid > 0 then
+				local entry = AddRequestToTable(requests, fluidName, missingFluid, entity)
+				--Add fluid to the request so it doesn't have to be created again
+				entry.fluid = fluid
+				entry.fluidbox = fluidbox
 			end
 		end
 	end
 end
 
-
-function AddItemToInputList(itemName, itemCount)
-	global.inputList[itemName] = (global.inputList[itemName] or 0) + itemCount
+function GetOutputElectricityRequest(requests, entityData)
+	local entity = entityData.entity
+	local bufferSize = entityData.bufferSize
+	if entity.valid then
+		local energy = entity.energy
+		local missingElectricity = math.floor((bufferSize - energy) / ELECTRICITY_RATIO)
+		if missingElectricity > 0 then
+			local entry = AddRequestToTable(requests, ELECTRICITY_ITEM_NAME, missingElectricity, entity)
+			entry.energy = energy
+		end
+	end
 end
 
-function AddItemToOutputList(itemName, itemCount)
-	global.outputList[itemName] = (global.outputList[itemName] or 0) + itemCount
+
+function FulfillOutputChestRequest(requests)
+	EvenlyDistributeItems(requests, OutputChestInputMethod)
+end
+
+function FulfillOutputTankRequest(requests)
+	EvenlyDistributeItems(requests, OutputTankInputMethod)
+end
+
+function FulfillOutputElectricityRequest(requests)
+	EvenlyDistributeItems(requests, OutputElectricityinputMethod)
 end
 
 
+function OutputChestInputMethod(request, itemName, evenShareOfItems)
+	if request.storage.valid then
+		local itemsToInsert = 
+		{
+			name = itemName, 
+			count = evenShareOfItems
+		}
+		
+		return request.inv.insert(itemsToInsert)
+	else
+		return 0
+	end
+end
 
+function OutputTankInputMethod(request, _, evenShareOfFluid)
+	if request.storage.valid then
+		request.fluid.amount = request.fluid.amount + evenShareOfFluid
+		
+		--Need to set steams heat because otherwise it's too low
+		if request.fluid.name == "steam" then
+			request.fluid.temperature = 165
+		end
+		
+		request.fluidbox[1] = request.fluid
+		return evenShareOfFluid
+	else
+		return 0
+	end
+end
+
+function OutputElectricityinputMethod(request, _, evenShare)
+	if request.storage.valid then
+		request.storage.energy = request.energy + (evenShare * ELECTRICITY_RATIO)
+		return evenShare
+	else
+		return 0
+	end
+end
+
+
+function ArrayToLinkedListOfRequests(array, shouldSort)
+	local linkedList = CreateDoublyLinkedList()
+	for itemName, requestInfo in pairs(array) do
+		if shouldSort then
+			--To be able to distribute it fairly, the requesters need to be sorted in order of how
+			--much they are missing, so the requester with the least missing of the item will be first.
+			--If this isn't done then there could be items leftover after they have been distributed
+			--even though they could all have been distributed if they had been distributed in order.
+			table.sort(requestInfo.requesters, function(left, right)
+				return left.missingAmount < right.missingAmount
+			end)
+		end
+		
+		for i = 1, #requestInfo.requesters do
+			local request = requestInfo.requesters[i]
+			request.itemName = itemName
+			request.requestedAmount = requestInfo.requestedAmount
+			AddLink(linkedList, request, 0)
+		end
+	end
+	
+	return linkedList
+end
+
+function AddRequestToTable(requests, itemName, missingAmount, storage)
+	--If this is the first entry for this item type then
+	--create a table for this item type first
+	if requests[itemName] == nil then
+		requests[itemName] = 
+		{
+			requestedAmount = 0,
+			requesters = {}
+		}
+	end
+	
+	local itemEntry = requests[itemName]
+	
+	--Add missing item to the count and add this chest inv to the list
+	itemEntry.requestedAmount = itemEntry.requestedAmount + missingAmount
+	itemEntry.requesters[#itemEntry.requesters + 1] = 
+	{
+		storage = storage,
+		missingAmount = missingAmount
+	}
+	
+	return itemEntry.requesters[#itemEntry.requesters]
+end
+
+function EvenlyDistributeItems(request, functionToInsertItems)
+	--Take the required item count from storage or how much storage has
+	local itemCount = RequestItemsFromUseableStorage(request.itemName, request.requestedAmount)
+	
+	--need to scale all the requests according to how much of the requested items are available.
+	--Can't be more than 100% because otherwise the chests will overfill
+	local avaiableItemsRatio = math.min(GetInitialItemCount(request.itemName) / request.requestedAmount, 1)
+	--Floor is used here so no chest uses more than its fair share.
+	--If they used more then the last entity would bet less which would be
+	--an issue with +1000 entities requesting items.
+	local chestHold = math.floor(request.missingAmount * avaiableItemsRatio)
+	--If there is less items than requests then floor will return zero and thus not
+	--distributes the remaining items. Thus here the mining is set to 1 but still
+	--it can't be set to 1 if there is no more items to distribute, which is what
+	--the last min corresponds to.
+	chestHold = math.max(chestHold, 1)
+	chestHold = math.min(chestHold, itemCount)
+	
+	--If there wasn't enough items to fulfill the whole request
+	--then ask for more items from outside the game
+	local missingItems = request.missingAmount - chestHold
+	if missingItems > 0 then
+		AddItemToOutputList(request.itemName, missingItems)
+	end
+	
+	if itemCount > 0 then						
+		--No need to insert 0 of something
+		if chestHold > 0 then
+			local insertedItemsCount = functionToInsertItems(request, request.itemName, chestHold)
+			itemCount = itemCount - insertedItemsCount
+		end
+		
+		--In some cases it's possible for the entity to not use up
+		--all the items. 
+		--In those cases the items should be put back into storage.
+		if itemCount > 0 then
+			GiveItemsToUseableStorage(request.itemName, itemCount)
+		end
+	end
+
+end
+
+
+-----------------------------------
+--[[Methods that write to files]]--
+----------------------------------- 
 function ExportInputList()
 	local exportStrings = {}
 	for k,v in pairs(global.inputList) do
@@ -429,31 +760,36 @@ function ExportOutputList()
 	end
 end
 
+function ExportItemFlows()
+	local flowreport = {type="item",flows={}}
 
-function RequestItemsFromStorage(itemName, itemCount)
-	--if result is nil then there is no items in storage
-	--which means that no items can be given
-	if global.itemStorage[itemName] == nil then
-		return 0
+	for _,force in pairs(game.forces) do
+		flowreport.flows[force.name] = {
+			input_counts = force.item_production_statistics.input_counts,
+			output_counts = force.item_production_statistics.output_counts,
+		}
 	end
-	--if the number of items in storage is lower than the number of items
-	--requested then take the number of items there are left otherwise take the requested amount
-	local itemsTakenFromStorage = math.min(global.itemStorage[itemName], itemCount)
-	global.itemStorage[itemName] = global.itemStorage[itemName] - itemsTakenFromStorage
 
-	return itemsTakenFromStorage
+	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
 end
 
-function GiveItemsToStorage(itemName, itemCount)
-	--if this is called for the first time for an item then the result
-	--is nil. if that's the case then set the result to 0 so it can
-	--be used in arithmetic operations
-	global.itemStorage[itemName] = global.itemStorage[itemName] or 0
-	global.itemStorage[itemName] = global.itemStorage[itemName] + itemCount
+function ExportFluidFlows()
+	local flowreport = {type="fluid",flows={}}
+
+	for _,force in pairs(game.forces) do
+		flowreport.flows[force.name] = {
+			input_counts = force.fluid_production_statistics.input_counts,
+			output_counts = force.fluid_production_statistics.output_counts,
+		}
+	end
+
+	game.write_file(FLOWS_FILE, json:encode(flowreport).."\n", true, global.write_file_player or 0)
 end
 
 
-
+---------------------------------
+--[[Update combinator methods]]--
+--------------------------------- 
 function AddFrameToRXBuffer(frame)
 	-- Add a frame to the buffer. return remaining space in buffer
 	local validsignals = {
@@ -579,7 +915,10 @@ function UpdateInvCombinators()
 
 end
 
---[[ Remote Thing ]]--
+
+---------------------
+--[[Remote things]]--
+--------------------- 
 remote.add_interface("clusterio",
 {
 	runcode=function(codeToRun) loadstring(codeToRun)() end,
@@ -634,8 +973,75 @@ remote.add_interface("clusterio",
 	end
 })
 
+commands.add_command("ccri", "clusterio internal command, receive Inventory", function(event) 
+	if game.player then 
+		return 
+	end 
+	local cmd = event.parameter 
+	cmd = "for name,count in pairs(" + cmd + ") do global.invdata[name] = count end" 
+	loadstring(cmd)()
+end)
+
+commands.add_command("ccrm", "clusterio internal command, receive Many", function(event) 
+	if game.player then 
+		return 
+	end 
+	local cmd = event.parameter 
+	cmd = "for k,item in pairs(" + cmd + ") do GiveItemsToStorage(k, item) end" 
+	loadstring(cmd)() 
+end)
 
 
+--------------------
+--[[Misc methods]]--
+-------------------- 
+function RequestItemsFromUseableStorage(itemName, itemCount)
+	--if result is nil then there is no items in storage
+	--which means that no items can be given
+	if global.useableItemStorage[itemName] == nil then
+		return 0
+	end
+	--if the number of items in storage is lower than the number of items
+	--requested then take the number of items there are left otherwise take the requested amount
+	local itemsTakenFromStorage = math.min(global.useableItemStorage[itemName].remainingItems, itemCount)
+	global.useableItemStorage[itemName].remainingItems = global.useableItemStorage[itemName].remainingItems - itemsTakenFromStorage
+
+	return itemsTakenFromStorage
+end
+
+function GetInitialItemCount(itemName)
+	if global.useableItemStorage[itemName] == nil then
+		return 0
+	end
+	return global.useableItemStorage[itemName].initialItemCount
+end
+
+function GiveItemsToUseableStorage(itemName, itemCount)
+	if global.useableItemStorage[itemName] == nil then
+		global.useableItemStorage[itemName] = 
+		{
+			initialItemCount = 0,
+			remainingItems = 0
+		}
+	end
+	global.useableItemStorage[itemName].remainingItems = global.useableItemStorage[itemName].remainingItems + itemCount
+end
+
+function GiveItemsToStorage(itemName, itemCount)
+	--if this is called for the first time for an item then the result
+	--is nil. if that's the case then set the result to 0 so it can
+	--be used in arithmetic operations
+	global.itemStorage[itemName] = global.itemStorage[itemName] or 0
+	global.itemStorage[itemName] = global.itemStorage[itemName] + itemCount
+end
+
+function AddItemToInputList(itemName, itemCount)
+	global.inputList[itemName] = (global.inputList[itemName] or 0) + itemCount
+end
+
+function AddItemToOutputList(itemName, itemCount)
+	global.outputList[itemName] = (global.outputList[itemName] or 0) + itemCount
+end
 
 function isFluidLegal(name)
 	for _,itemName in pairs(global.config.BWfluids) do
@@ -645,6 +1051,7 @@ function isFluidLegal(name)
 	end
 	return not global.config.fluid_is_whitelist
 end
+
 function isItemLegal(name)
 	for _,itemName in pairs(global.config.BWitems) do
 		if itemName==name then
@@ -653,6 +1060,11 @@ function isItemLegal(name)
 	end
 	return not global.config.item_is_whitelist
 end
+
+
+-------------------
+--[[GUI methods]]--
+------------------- 
 function createElemGui_INTERNAL(pane,guiName,elem_type,loadingList)
 	local gui = pane.add{ type = "table", name = guiName, column_count = 5 }
 	for _,item in pairs(loadingList) do
@@ -660,7 +1072,6 @@ function createElemGui_INTERNAL(pane,guiName,elem_type,loadingList)
 	end
 	gui.add{type="choose-elem-button",elem_type=elem_type}
 end
-
 
 function toggleBWItemListGui(parent)
 	if parent["clusterio-black-white-item-list-config"] then
@@ -672,6 +1083,7 @@ function toggleBWItemListGui(parent)
 	pane.add{type="checkbox", name="clusterio-is-item-whitelist", caption="whitelist",state=global.config.item_is_whitelist}
 	createElemGui_INTERNAL(pane,"item-black-white-list","item",global.config.BWitems)
 end
+
 function toggleBWFluidListGui(parent)
 	if parent["clusterio-black-white-fluid-list-config"] then
         parent["clusterio-black-white-fluid-list-config"].destroy()
@@ -682,6 +1094,7 @@ function toggleBWFluidListGui(parent)
 	pane.add{type="checkbox", name="clusterio-is-fluid-whitelist", caption="whitelist",state=global.config.fluid_is_whitelist}
 	createElemGui_INTERNAL(pane,"fluid-black-white-list","fluid",global.config.BWfluids)
 end
+
 function processElemGui(event,toUpdateConfigName)--VERY WIP
 	parent=event.element.parent
 	if event.element.elem_value==nil then event.element.destroy()
@@ -701,7 +1114,6 @@ script.on_event(defines.events.on_gui_value_changed,function(event)
 	end 
 end)
 
-
 function toggleMainConfigGui(parent)
 	if parent["clusterio-main-config-gui"] then
         parent["clusterio-main-config-gui"].destroy()
@@ -719,6 +1131,7 @@ function toggleMainConfigGui(parent)
 	electricityPane.add{type="textfield", name="clusterio-electricity-field", text = global.maxElectricity}
 	
 end
+
 function processMainConfigGui(event)
 	if event.element.name=="clusterio-Item-WB-list" then
 		toggleBWItemListGui(game.players[event.player_index].gui.top)
@@ -727,6 +1140,7 @@ function processMainConfigGui(event)
 		toggleBWFluidListGui(game.players[event.player_index].gui.top)
 	end
 end
+
 script.on_event(defines.events.on_gui_checked_state_changed, function(event) 
 	if not (event.element.parent) then return end
 	if event.element.name=="clusterio-is-fluid-whitelist" then 
@@ -780,14 +1194,18 @@ function makeConfigButton(parent)
 end
 
 
-
+--------------------------
+--[[Some random events]]--
+-------------------------- 
 script.on_event(defines.events.on_player_joined_game,function(event) 
 	if game.players[event.player_index].admin then  
 		makeConfigButton(game.players[event.player_index].gui.top)
 	end
 end)
---script.on_event(defines.events.on_player_died,function(event) 
---	local msg="!shout "..game.players[event.player_index].name.." has been killed"
---	if event.cause~=nil then if event.cause.name~="locomotive" then return end msg=msg.." by "..event.cause.name else msg=msg.."." end
---	game.print( msg)
---end)--game.write_file("alerts.txt","player_died, "..game.players[event.player_index].name.." has killed by "..(event.cause or {name="unknown"}).name,true) end)--
+
+script.on_event(defines.events.on_player_died,function(event) 
+	--local msg="!shout "..game.players[event.player_index].name.." has been killed"
+	--if event.cause~=nil then if event.cause.name~="locomotive" then return end msg=msg.." by "..event.cause.name else msg=msg.."." end
+	game.write_file("alerts.txt","player_died, "..game.players[event.player_index].name.." has been killed by "..(event.cause or {name="unknown"}).name,true)
+end)
+--script.on_load(function() commands.add_command("ccri","clusterio internal command",function(x) game.print(x.test) end ) end)
