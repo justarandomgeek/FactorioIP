@@ -369,11 +369,19 @@ data:extend{
 	},
 	{
 		type = "virtual-signal",
+		name = "signal-dstid",
+		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon_size = 32,
+		subgroup = "virtual-signal-clusterio",
+		order = "e[clusterio]-[3dstid]"
+	},
+	{
+		type = "virtual-signal",
 		name = "signal-localid",
 		icon = "__base__/graphics/icons/signal/signal_grey.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[3localid]"
+		order = "e[clusterio]-[4localid]"
 	},
 	{
 		type = "virtual-signal",
@@ -381,7 +389,7 @@ data:extend{
 		icon = "__base__/graphics/icons/signal/signal_grey.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[4unixtime]"
+		order = "e[clusterio]-[5unixtime]"
 	},
 }
 
