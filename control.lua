@@ -799,13 +799,17 @@ end
 ---------------------------------
 --[[Update combinator methods]]--
 ---------------------------------
-local validsignals = {
-  ["virtual"] = game.virtual_signal_prototypes,
-  ["fluid"]	 = game.fluid_prototypes,
-  ["item"]		= game.item_prototypes
-}
+local validsignals
 function AddFrameToRXBuffer(frame)
-	-- Add a frame to the buffer. return remaining space in buffer
+  if not validsignals then
+    validsignals = {
+      ["virtual"] = game.virtual_signal_prototypes,
+      ["fluid"]	 = game.fluid_prototypes,
+      ["item"]		= game.item_prototypes
+    }
+  end
+  -- Add a frame to the buffer. return remaining space in buffer
+
 
 	-- if buffer is full, drop frame
 	if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
