@@ -245,6 +245,7 @@ function Reset()
 	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ assuming a ratio of 1.000.000
 
 	global.rxControls = {}
+  global.rxBuffer = {}
 	global.txControls = {}
 	global.invControls = {}
 
@@ -805,7 +806,6 @@ local validsignals = {
 }
 function AddFrameToRXBuffer(frame)
 	-- Add a frame to the buffer. return remaining space in buffer
-	global.rxBuffer = global.rxBuffer or {}
 
 	-- if buffer is full, drop frame
 	if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
@@ -872,7 +872,7 @@ end
 
 function UpdateRXCombinators()
 	-- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
-	if global.rxBuffer and #global.rxBuffer > 0 then
+	if #global.rxBuffer > 0 then
 		local frame = table.remove(global.rxBuffer)
 		for i,rxControl in pairs(global.rxControls) do
 			if rxControl.valid then
