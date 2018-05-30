@@ -354,7 +354,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-srctick",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_srctick.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[1srctick]"
@@ -362,7 +362,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-srcid",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_srcid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[2srcid]"
@@ -370,7 +370,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-dstid",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_dstid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[3dstid]"
@@ -378,7 +378,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-localid",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_localid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[4localid]"
@@ -386,7 +386,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-unixtime",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_unixtime.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[5unixtime]"
