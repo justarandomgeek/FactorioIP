@@ -212,14 +212,11 @@ MakeLogisticEntity(table.deepcopy(data.raw["storage-tank"]["storage-tank"]),	INP
 --------------------------------------------------------
 --[[This section is purely to create the output tank]]--
 --------------------------------------------------------
-
-local CRAFING_FLUID_CATEGORY_NAME = "crafting-fluids"
-
 data:extend(
 {
 	{
 		type = "recipe-category",
-		name = CRAFING_FLUID_CATEGORY_NAME
+		name = CRAFTING_FLUID_CATEGORY_NAME
 	}
 })
 
@@ -241,7 +238,7 @@ fluidCreator.fluid_boxes =
 	},
 	off_when_no_fluid_recipe = false
 }
-fluidCreator.crafting_categories = {CRAFING_FLUID_CATEGORY_NAME}
+fluidCreator.crafting_categories = {CRAFTING_FLUID_CATEGORY_NAME}
 fluidCreator.energy_usage = "1kW"
 fluidCreator.ingredient_count = 1
 fluidCreator.module_specification.module_slots = 0

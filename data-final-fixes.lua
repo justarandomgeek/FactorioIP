@@ -8,7 +8,7 @@ for k,v in pairs(data.raw.fluid) do
 			name = ("get-"..v.name),
 			icon = v.icon,
 			icon_size = 32,
-			category = CRAFING_FLUID_CATEGORY_NAME,
+			category = CRAFTING_FLUID_CATEGORY_NAME,
 			--localised_name = {v.name},
 			energy_required = 1,
 			subgroup = "fill-barrel",
