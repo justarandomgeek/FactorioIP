@@ -20,6 +20,8 @@ OUTPUT_TANK_NAME = "get-tank"
 OUTPUT_TANK_PICTURE_PATH = nil
 OUTPUT_TANK_ICON_PATH = nil
 
+CRAFTING_FLUID_CATEGORY_NAME = "crafting-fluids"
+
 --put electricty into this thing
 INPUT_ELECTRICITY_NAME = "put-electricity"
 INPUT_ELECTRICITY_PICTURE_PATH = nil

@@ -24,7 +24,7 @@ function OnBuiltEntity(event)
 	local name = entity.name
 	if name == "entity-ghost" then name = entity.ghost_name end
 
-	if ENTITY_TELEPORTATION_RESTRICTION and (name == INPUT_CHEST_NAME or name == OUTPUT_CHEST_NAME or name == INPUT_TANK_NAME or name == OUTPUT_TANK_NAME) then
+	if ENTITY_TELEPORTATION_RESTRICTION and global.config.PlacableArea>0 and (name == INPUT_CHEST_NAME or name == OUTPUT_CHEST_NAME or name == INPUT_TANK_NAME or name == OUTPUT_TANK_NAME) then
 		if (x < global.config.PlacableArea and x > 0-global.config.PlacableArea and y < global.config.PlacableArea and y > 0-global.config.PlacableArea) then
 			--only add entities that are not ghosts
 			if entity.type ~= "entity-ghost" then
@@ -847,12 +847,20 @@ function HandleTXCombinators()
 			local frame = txControl.signals_last_tick
 			if frame then
 				for _,signal in pairs(frame) do
-					signals[signal.signal.type][signal.signal.name]=
-						(signals[signal.signal.type][signal.signal.name] or 0) + signal.count
+					local signalType = signal.signal.type
+					local signalName = signal.signal.name
+					signals[signalType][signalName] = (signals[signalType][signalName] or 0) + signal.count
 				end
 			end
 		end
 	end
+	
+	--Don't send the exact same signals in a row
+	if AreTablesSame(global.oldTXSignals, signals) then
+		global.oldTXSignals = signals
+		return
+	end
+	global.oldTXSignals = signals
 
 	local frame = {}
 	for type,arr in pairs(signals) do
@@ -872,6 +880,43 @@ function HandleTXCombinators()
 		--AddFrameToRXBuffer(frame)
 
 	end
+end
+
+function AreTablesSame(tableA, tableB)
+	if tableA == nil and tableB ~= nil then
+		return false
+	elseif tableA ~= nil and tableB == nil then
+		return false
+	elseif tableA == nil and tableB == nil then
+		return true
+	end
+	
+	if TableWithKeysLength(tableA) ~= TableWithKeysLength(tableB) then
+		return false
+	end
+	
+	for keyA, valueA in pairs(tableA) do
+		local valueB = tableB[keyA]
+		if type(valueA) == "table" and type(valueB) == "table" then
+			if not AreTablesSame(valueA, valueB) then
+				return false
+			end
+		elseif type(valueA) ~= type(valueB) then
+			return false
+		elseif valueA ~= valueB then
+			return false
+		end
+	end
+	
+	return true
+end
+
+function TableWithKeysLength(tableA)
+	local count = 0
+	for k, v in pairs(tableA) do
+		count = count + 1
+	end
+	return count
 end
 
 function UpdateRXCombinators()
@@ -1140,9 +1185,12 @@ function processElemGui(event, toUpdateConfigName)--VERY WIP
 end
 
 script.on_event(defines.events.on_gui_value_changed, function(event)
-	if event.element.name == "clusterio-Placing-Bounding-Box" then
-		global.config.PlacableArea = event.element.slider_value
-		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption = "Chest/fluid bounding box: "..global.config.PlacableArea
+	if event.element.name=="clusterio-Placing-Bounding-Box" then
+		global.config.PlacableArea=event.element.slider_value
+		local placeableAreaString = global.config.PlacableArea
+		if placeableAreaString == 0 then placeableAreaString="none" end
+
+		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption="Chest/fluid bounding box: "..placeableAreaString
 	end
 end)
 
