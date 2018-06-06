@@ -23,8 +23,8 @@ function OnBuiltEntity(event)
 	
 	local name = entity.name
 	if name == "entity-ghost" then name = entity.ghost_name end
-	
-	if ENTITY_TELEPORTATION_RESTRICTION and (name == INPUT_CHEST_NAME or name == OUTPUT_CHEST_NAME or name == INPUT_TANK_NAME or name == OUTPUT_TANK_NAME) then
+
+	if ENTITY_TELEPORTATION_RESTRICTION and global.config.PlacableArea>0 and (name == INPUT_CHEST_NAME or name == OUTPUT_CHEST_NAME or name == INPUT_TANK_NAME or name == OUTPUT_TANK_NAME) then
 		if (x < global.config.PlacableArea and x > 0-global.config.PlacableArea and y < global.config.PlacableArea and y > 0-global.config.PlacableArea) then
 			--only add entities that are not ghosts
 			if entity.type ~= "entity-ghost" then
@@ -1181,11 +1181,14 @@ function processElemGui(event, toUpdateConfigName)--VERY WIP
 	end
 end
 
-script.on_event(defines.events.on_gui_value_changed, function(event) 
-	if event.element.name == "clusterio-Placing-Bounding-Box" then 
-		global.config.PlacableArea = event.element.slider_value 
-		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption = "Chest/fluid bounding box: "..global.config.PlacableArea
-	end 
+script.on_event(defines.events.on_gui_value_changed, function(event)
+	if event.element.name=="clusterio-Placing-Bounding-Box" then
+		global.config.PlacableArea=event.element.slider_value
+		local placeableAreaString = global.config.PlacableArea
+		if placeableAreaString == 0 then placeableAreaString="none" end
+
+		event.element.parent["clusterio-Placing-Bounding-Box-Label"].caption="Chest/fluid bounding box: "..placeableAreaString
+	end
 end)
 
 function toggleMainConfigGui(parent)
