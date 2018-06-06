@@ -4,14 +4,14 @@ local json = require("json")
 
 ------------------------------------------------------------
 --[[Method that handle creation and deletion of entities]]--
------------------------------------------------------------- 
+------------------------------------------------------------
 function OnBuiltEntity(event)
 	local entity = event.created_entity
 	if not (entity and entity.valid) then return end
-	
+
 	local player = false
 	if event.player_index then player = game.players[event.player_index] end
-	
+
 	local spawn
 	if player and player.valid then
 		spawn = game.players[event.player_index].force.get_spawn_position(entity.surface)
@@ -20,7 +20,7 @@ function OnBuiltEntity(event)
 	end
 	local x = entity.position.x - spawn.x
 	local y = entity.position.y - spawn.y
-	
+
 	local name = entity.name
 	if name == "entity-ghost" then name = entity.ghost_name end
 
@@ -78,7 +78,7 @@ function AddEntity(entity)
 	elseif entity.name == OUTPUT_CHEST_NAME then
 		--add the chests to a lists if these chests so they can be interated over
 		AddLink(global.outputChestsData.entitiesData, {
-			entity = entity, 
+			entity = entity,
 			inv = entity.get_inventory(defines.inventory.chest),
 			filterCount = entity.prototype.filter_count
 		}, entity.unit_number)
@@ -143,7 +143,7 @@ end
 
 -----------------------------
 --[[Thing creation events]]--
------------------------------ 
+-----------------------------
 script.on_event(defines.events.on_built_entity, function(event)
 	OnBuiltEntity(event)
 end)
@@ -155,7 +155,7 @@ end)
 
 ----------------------------
 --[[Thing killing events]]--
----------------------------- 
+----------------------------
 script.on_event(defines.events.on_entity_died, function(event)
 	OnKilledEntity(event)
 end)
@@ -171,7 +171,7 @@ end)
 
 ------------------------------
 --[[Thing resetting events]]--
------------------------------- 
+------------------------------
 script.on_init(function()
 	Reset()
 end)
@@ -190,8 +190,8 @@ function Reset()
 	global.workTick = 0
 	global.hasInfiniteResources = false
 
-	if global.config == nil then 
-		global.config = 
+	if global.config == nil then
+		global.config =
 		{
 			BWitems = {},
 			item_is_whitelist = false,
@@ -200,42 +200,42 @@ function Reset()
 			PlacableArea = 200
 		}
 	end
-	if global.invdata == nil then 
-		global.invdata = {} 
+	if global.invdata == nil then
+		global.invdata = {}
 	end
-	
+
 	global.outputList = {}
 	global.inputList = {}
 	global.itemStorage = {}
 	global.useableItemStorage = {}
 
-	global.inputChestsData = 
+	global.inputChestsData =
 	{
 		entitiesData = CreateDoublyLinkedList()
 	}
-	global.outputChestsData = 
+	global.outputChestsData =
 	{
 		entitiesData = CreateDoublyLinkedList(),
 		requests = {},
 		requestsLL = nil
 	}
 
-	global.inputTanksData = 
+	global.inputTanksData =
 	{
 		entitiesData = CreateDoublyLinkedList()
 	}
-	global.outputTanksData = 
+	global.outputTanksData =
 	{
 		entitiesData = CreateDoublyLinkedList(),
 		requests = {},
 		requestsLL = nil
 	}
-	
-	global.inputElectricityData = 
+
+	global.inputElectricityData =
 	{
 		entitiesData = CreateDoublyLinkedList()
 	}
-	global.outputElectricityData = 
+	global.outputElectricityData =
 	{
 		entitiesData = CreateDoublyLinkedList(),
 		requests = {},
@@ -245,6 +245,7 @@ function Reset()
 	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ assuming a ratio of 1.000.000
 
 	global.rxControls = {}
+  global.rxBuffer = {}
 	global.txControls = {}
 	global.invControls = {}
 
@@ -265,22 +266,22 @@ end
 script.on_event(defines.events.on_tick, function(event)
 	-- TX Combinators must run every tick to catch single pulses
 	HandleTXCombinators()
-	
+
 	--If the mod isn't connected then still pretend that it's
 	--so items requests and removals can be fulfilled
 	if global.hasInfiniteResources then
 		global.ticksSinceMasterPinged = 0
 	end
-	
+
 	global.ticksSinceMasterPinged = global.ticksSinceMasterPinged + 1
-	if global.ticksSinceMasterPinged < 300 then		
+	if global.ticksSinceMasterPinged < 300 then
 		global.isConnected = true
-		
-		
+
+
 		if global.prevIsConnected == false then
 			global.workTick = 0
 		end
-	
+
 		if global.workTick == 0 then
 			--importing electricity should be limited because it requests so
 			--much at once. If it wasn't limited then the electricity could
@@ -290,8 +291,8 @@ script.on_event(defines.events.on_tick, function(event)
 			--the 10 second period.
 			local timeSinceLastElectricityUpdate = game.tick - global.lastElectricityUpdate
 			global.allowedToMakeElectricityRequests = timeSinceLastElectricityUpdate > 60 * 3.5
-		end		
-		
+		end
+
 		--First retrieve requests and then fulfill them
 		if global.workTick >= 0 and global.workTick < TICKS_TO_COLLECT_REQUESTS then
 			if global.workTick == 0 then
@@ -306,7 +307,7 @@ script.on_event(defines.events.on_tick, function(event)
 			end
 			FulfillGetterRequests(global.allowedToMakeElectricityRequests)
 		end
-		
+
 		--Emptying putters will continiously happen
 		--while requests are gathered and fulfilled
 		if global.workTick >= 0 and global.workTick < TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS then
@@ -315,7 +316,7 @@ script.on_event(defines.events.on_tick, function(event)
 			end
 			EmptyPutters()
 		end
-		
+
 		if     global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 0 then
 			ExportInputList()
 			global.workTick = global.workTick + 1
@@ -327,7 +328,7 @@ script.on_event(defines.events.on_tick, function(event)
 			global.workTick = global.workTick + 1
 		elseif global.workTick == TICKS_TO_COLLECT_REQUESTS + TICKS_TO_FULFILL_REQUESTS + 3 then
 			ExportItemFlows()
-			
+
 			--Restart loop
 			global.workTick = 0
 			if global.allowedToMakeElectricityRequests then
@@ -356,14 +357,14 @@ end
 
 ----------------------------------------
 --[[Getter and setter update methods]]--
----------------------------------------- 
+----------------------------------------
 function ResetRequestGathering()
 	RestartIterator(global.outputChestsData.entitiesData     , TICKS_TO_COLLECT_REQUESTS)
 	global.outputChestsData.requests = {}
-	
+
 	RestartIterator(global.outputTanksData.entitiesData      , TICKS_TO_COLLECT_REQUESTS)
 	global.outputTanksData.requests = {}
-	
+
 	RestartIterator(global.outputElectricityData.entitiesData, TICKS_TO_COLLECT_REQUESTS)
 	global.outputElectricityData.requests = {}
 end
@@ -386,7 +387,7 @@ function PrepareToFulfillRequests()
 	global.outputElectricityData.requestsLL = ArrayToLinkedListOfRequests(global.outputElectricityData.requests, false)
 end
 
-function RetrieveGetterRequests(allowedToGetElectricityRequests)	
+function RetrieveGetterRequests(allowedToGetElectricityRequests)
 	local chestLL = global.outputChestsData.entitiesData
 	for i = 1, chestLL.iterator.linksPerTick do
 		local nextLink = NextLink(chestLL)
@@ -394,7 +395,7 @@ function RetrieveGetterRequests(allowedToGetElectricityRequests)
 			GetOutputChestRequest(global.outputChestsData.requests, nextLink.data)
 		end
 	end
-	
+
 	local tankLL = global.outputTanksData.entitiesData
 	for i = 1, tankLL.iterator.linksPerTick do
 		local nextLink = NextLink(tankLL)
@@ -402,7 +403,7 @@ function RetrieveGetterRequests(allowedToGetElectricityRequests)
 			GetOutputTankRequest(global.outputTanksData.requests, nextLink.data)
 		end
 	end
-	
+
 	if allowedToGetElectricityRequests then
 		local electricityLL = global.outputElectricityData.entitiesData
 		for i = 1, electricityLL.iterator.linksPerTick do
@@ -422,7 +423,7 @@ function FulfillGetterRequests(allowedToGetElectricityRequests)
 			FulfillOutputChestRequest(nextLink.data)
 		end
 	end
-	
+
 	local tankLL = global.outputTanksData.requestsLL
 	for i = 1, tankLL.iterator.linksPerTick do
 		local nextLink = NextLink(tankLL)
@@ -430,7 +431,7 @@ function FulfillGetterRequests(allowedToGetElectricityRequests)
 			FulfillOutputTankRequest(nextLink.data)
 		end
 	end
-	
+
 	if allowedToGetElectricityRequests then
 		local electricityLL = global.outputElectricityData.requestsLL
 		for i = 1, electricityLL.iterator.linksPerTick do
@@ -450,7 +451,7 @@ function EmptyPutters()
 			HandleInputChest(nextLink.data)
 		end
 	end
-	
+
 	local tankLL = global.inputTanksData.entitiesData
 	for i = 1, tankLL.iterator.linksPerTick do
 		local nextLink = NextLink(tankLL)
@@ -458,7 +459,7 @@ function EmptyPutters()
 			HandleInputTank(nextLink.data)
 		end
 	end
-	
+
 	local electricityLL = global.inputElectricityData.entitiesData
 	for i = 1, electricityLL.iterator.linksPerTick do
 		local nextLink = NextLink(electricityLL)
@@ -506,7 +507,7 @@ function HandleInputElectricity(entity)
 	if global.invdata and global.invdata[ELECTRICITY_ITEM_NAME] and global.invdata[ELECTRICITY_ITEM_NAME] >= global.maxElectricity then
 		return
 	end
-	
+
 	if entity.valid then
 		local energy = entity.energy
 		local availableEnergy = math.floor(energy / ELECTRICITY_RATIO)
@@ -527,7 +528,7 @@ function GetOutputChestRequest(requests, entityData)
 		--Go though each request slot
 		for i = 1, filterCount do
 			local requestItem = entity.get_request_slot(i)
-			
+
 			--Some request slots may be empty and some items are not allowed
 			--to be imported
 			if requestItem ~= nil and isItemLegal(requestItem.name) then
@@ -606,12 +607,12 @@ end
 
 function OutputChestInputMethod(request, itemName, evenShareOfItems)
 	if request.storage.valid then
-		local itemsToInsert = 
+		local itemsToInsert =
 		{
-			name = itemName, 
+			name = itemName,
 			count = evenShareOfItems
 		}
-		
+
 		return request.inv.insert(itemsToInsert)
 	else
 		return 0
@@ -621,12 +622,12 @@ end
 function OutputTankInputMethod(request, _, evenShareOfFluid)
 	if request.storage.valid then
 		request.fluid.amount = request.fluid.amount + evenShareOfFluid
-		
+
 		--Need to set steams heat because otherwise it's too low
 		if request.fluid.name == "steam" then
 			request.fluid.temperature = 165
 		end
-		
+
 		request.fluidbox[1] = request.fluid
 		return evenShareOfFluid
 	else
@@ -656,7 +657,7 @@ function ArrayToLinkedListOfRequests(array, shouldSort)
 				return left.missingAmount < right.missingAmount
 			end)
 		end
-		
+
 		for i = 1, #requestInfo.requesters do
 			local request = requestInfo.requesters[i]
 			request.itemName = itemName
@@ -664,7 +665,7 @@ function ArrayToLinkedListOfRequests(array, shouldSort)
 			AddLink(linkedList, request, 0)
 		end
 	end
-	
+
 	return linkedList
 end
 
@@ -672,30 +673,30 @@ function AddRequestToTable(requests, itemName, missingAmount, storage)
 	--If this is the first entry for this item type then
 	--create a table for this item type first
 	if requests[itemName] == nil then
-		requests[itemName] = 
+		requests[itemName] =
 		{
 			requestedAmount = 0,
 			requesters = {}
 		}
 	end
-	
+
 	local itemEntry = requests[itemName]
-	
+
 	--Add missing item to the count and add this chest inv to the list
 	itemEntry.requestedAmount = itemEntry.requestedAmount + missingAmount
-	itemEntry.requesters[#itemEntry.requesters + 1] = 
+	itemEntry.requesters[#itemEntry.requesters + 1] =
 	{
 		storage = storage,
 		missingAmount = missingAmount
 	}
-	
+
 	return itemEntry.requesters[#itemEntry.requesters]
 end
 
 function EvenlyDistributeItems(request, functionToInsertItems)
 	--Take the required item count from storage or how much storage has
 	local itemCount = RequestItemsFromUseableStorage(request.itemName, request.requestedAmount)
-	
+
 	--need to scale all the requests according to how much of the requested items are available.
 	--Can't be more than 100% because otherwise the chests will overfill
 	local avaiableItemsRatio = math.min(GetInitialItemCount(request.itemName) / request.requestedAmount, 1)
@@ -709,23 +710,23 @@ function EvenlyDistributeItems(request, functionToInsertItems)
 	--the last min corresponds to.
 	chestHold = math.max(chestHold, 1)
 	chestHold = math.min(chestHold, itemCount)
-	
+
 	--If there wasn't enough items to fulfill the whole request
 	--then ask for more items from outside the game
 	local missingItems = request.missingAmount - chestHold
 	if missingItems > 0 then
 		AddItemToOutputList(request.itemName, missingItems)
 	end
-	
-	if itemCount > 0 then						
+
+	if itemCount > 0 then
 		--No need to insert 0 of something
 		if chestHold > 0 then
 			local insertedItemsCount = functionToInsertItems(request, request.itemName, chestHold)
 			itemCount = itemCount - insertedItemsCount
 		end
-		
+
 		--In some cases it's possible for the entity to not use up
-		--all the items. 
+		--all the items.
 		--In those cases the items should be put back into storage.
 		if itemCount > 0 then
 			GiveItemsToUseableStorage(request.itemName, itemCount)
@@ -737,7 +738,7 @@ end
 
 -----------------------------------
 --[[Methods that write to files]]--
------------------------------------ 
+-----------------------------------
 function ExportInputList()
 	local exportStrings = {}
 	for k,v in pairs(global.inputList) do
@@ -797,16 +798,18 @@ end
 
 ---------------------------------
 --[[Update combinator methods]]--
---------------------------------- 
+---------------------------------
+local validsignals
 function AddFrameToRXBuffer(frame)
-	-- Add a frame to the buffer. return remaining space in buffer
-	local validsignals = {
-		["virtual"] = game.virtual_signal_prototypes,
-		["fluid"]	 = game.fluid_prototypes,
-		["item"]		= game.item_prototypes
-	}
+  if not validsignals then
+    validsignals = {
+      ["virtual"] = game.virtual_signal_prototypes,
+      ["fluid"]	 = game.fluid_prototypes,
+      ["item"]		= game.item_prototypes
+    }
+  end
+  -- Add a frame to the buffer. return remaining space in buffer
 
-	global.rxBuffer = global.rxBuffer or {}
 
 	-- if buffer is full, drop frame
 	if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
@@ -918,7 +921,7 @@ end
 
 function UpdateRXCombinators()
 	-- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
-	if global.rxBuffer and #global.rxBuffer > 0 then
+	if #global.rxBuffer > 0 then
 		local frame = table.remove(global.rxBuffer)
 		for i,rxControl in pairs(global.rxControls) do
 			if rxControl.valid then
@@ -972,7 +975,7 @@ end
 
 ---------------------
 --[[Remote things]]--
---------------------- 
+---------------------
 remote.add_interface("clusterio",
 {
 	runcode=function(codeToRun) loadstring(codeToRun)() end,
@@ -1016,7 +1019,7 @@ remote.add_interface("clusterio",
 		global.ticksSinceMasterPinged = 0
 		local invdata = json:decode(jsoninvdata)
 		for name,count in pairs(invdata) do
-			global.invdata[name]=count	
+			global.invdata[name]=count
 		end
 		-- invdata = {["iron-plates"]=1234,["copper-plates"]=5678,...}
 		UpdateInvCombinators()
@@ -1027,28 +1030,28 @@ remote.add_interface("clusterio",
 	end
 })
 
-commands.add_command("ccri", "clusterio internal command, receive Inventory", function(event) 
-	if game.player then 
-		return 
-	end 
-	local cmd = event.parameter 
-	cmd = "for name,count in pairs(" + cmd + ") do global.invdata[name] = count end" 
+commands.add_command("ccri", "clusterio internal command, receive Inventory", function(event)
+	if game.player then
+		return
+	end
+	local cmd = event.parameter
+	cmd = "for name,count in pairs(" + cmd + ") do global.invdata[name] = count end"
 	loadstring(cmd)()
 end)
 
-commands.add_command("ccrm", "clusterio internal command, receive Many", function(event) 
-	if game.player then 
-		return 
-	end 
-	local cmd = event.parameter 
-	cmd = "for k,item in pairs(" + cmd + ") do GiveItemsToStorage(k, item) end" 
-	loadstring(cmd)() 
+commands.add_command("ccrm", "clusterio internal command, receive Many", function(event)
+	if game.player then
+		return
+	end
+	local cmd = event.parameter
+	cmd = "for k,item in pairs(" + cmd + ") do GiveItemsToStorage(k, item) end"
+	loadstring(cmd)()
 end)
 
 
 --------------------
 --[[Misc methods]]--
--------------------- 
+--------------------
 function RequestItemsFromUseableStorage(itemName, itemCount)
 	--if infinite resources then the whole request is approved
 	if global.hasInfiniteResources then
@@ -1086,7 +1089,7 @@ end
 
 function GiveItemsToUseableStorage(itemName, itemCount)
 	if global.useableItemStorage[itemName] == nil then
-		global.useableItemStorage[itemName] = 
+		global.useableItemStorage[itemName] =
 		{
 			initialItemCount = 0,
 			remainingItems = 0
@@ -1132,7 +1135,7 @@ end
 
 -------------------
 --[[GUI methods]]--
-------------------- 
+-------------------
 function createElemGui_INTERNAL(pane, guiName, elem_type, loadingList)
 	local gui = pane.add{type = "table", name = guiName, column_count = 5}
 	for _, item in pairs(loadingList) do
@@ -1146,7 +1149,7 @@ function toggleBWItemListGui(parent)
         parent["clusterio-black-white-item-list-config"].destroy()
         return
     end
-	
+
 	local pane = parent.add{type = "frame", name = "clusterio-black-white-item-list-config", direction = "vertical"}
 	pane.add{type = "label", caption = "Item"}
 	pane.add{type = "checkbox", name = "clusterio-is-item-whitelist", caption = "whitelist", state = global.config.item_is_whitelist}
@@ -1158,7 +1161,7 @@ function toggleBWFluidListGui(parent)
         parent["clusterio-black-white-fluid-list-config"].destroy()
         return
     end
-	
+
 	local pane = parent.add{type = "frame", name = "clusterio-black-white-fluid-list-config", direction = "vertical"}
 	pane.add{type = "label", caption = "Fluid"}
 	pane.add{type = "checkbox", name = "clusterio-is-fluid-whitelist", caption = "whitelist", state = global.config.fluid_is_whitelist}
@@ -1167,12 +1170,12 @@ end
 
 function processElemGui(event, toUpdateConfigName)--VERY WIP
 	local parent = event.element.parent
-	if event.element.elem_value == nil then 
+	if event.element.elem_value == nil then
 		event.element.destroy()
-	else 
-		parent.add{type = "choose-elem-button", elem_type=parent.children[1].elem_type} 
+	else
+		parent.add{type = "choose-elem-button", elem_type=parent.children[1].elem_type}
 	end
-	
+
 	global.config[toUpdateConfigName] = {}
 	for _, guiElement in pairs(parent.children) do
 		if guiElement.elem_value ~= nil then
@@ -1196,18 +1199,18 @@ function toggleMainConfigGui(parent)
         parent["clusterio-main-config-gui"].destroy()
         return
     end
-	
+
 	local pane = parent.add{type = "frame", name = "clusterio-main-config-gui", direction = "vertical"}
 	pane.add{type = "button", name = "clusterio-Item-WB-list", caption = "Item White/Black list"}
     pane.add{type = "button", name = "clusterio-Fluid-WB-list", caption = "Fluid White/Black list"}
 	pane.add{type = "label" , name = "clusterio-Placing-Bounding-Box-Label", caption = "Chest/fluid bounding box: "..global.config.PlacableArea}
 	pane.add{type = "slider", name = "clusterio-Placing-Bounding-Box", minimum_value = 0, maximum_value = 800, value = global.config.PlacableArea}
-	
+
 	--Electricity panel
 	local electricityPane = pane.add{type = "frame", name = "clusterio-main-config-gui", direction = "horizontal"}
 	electricityPane.add{type = "label", name = "clusterio-electricity-label", caption = "Max electricity"}
 	electricityPane.add{type = "textfield", name = "clusterio-electricity-field", text = global.maxElectricity}
-	
+
 	--Infinity mode button
 	addInfinityModeButton(pane)
 end
@@ -1237,27 +1240,27 @@ function processMainConfigGui(event)
 	end
 end
 
-script.on_event(defines.events.on_gui_checked_state_changed, function(event) 
-	if not (event.element.parent) then 
-		return 
+script.on_event(defines.events.on_gui_checked_state_changed, function(event)
+	if not (event.element.parent) then
+		return
 	end
-	
-	if event.element.name == "clusterio-is-fluid-whitelist" then 
-		global.config.fluid_is_whitelist = event.element.state 
-	elseif event.element.name == "clusterio-is-item-whitelist" then 
-		global.config.item_is_whitelist = event.element.state 
+
+	if event.element.name == "clusterio-is-fluid-whitelist" then
+		global.config.fluid_is_whitelist = event.element.state
+	elseif event.element.name == "clusterio-is-item-whitelist" then
+		global.config.item_is_whitelist = event.element.state
 	end
 end)
-	
+
 script.on_event(defines.events.on_gui_click, function(event)
-	if not (event.element and event.element.valid) then 
-		return 
+	if not (event.element and event.element.valid) then
+		return
 	end
-	if not (event.element.parent) then 
-		return 
+	if not (event.element.parent) then
+		return
 	end
-	
-	if event.element.parent.name == "clusterio-main-config-gui" then 
+
+	if event.element.parent.name == "clusterio-main-config-gui" then
 		processMainConfigGui(event)
 	elseif event.element.name == "clusterio-main-config-gui-toggle-button" then
 		local player = game.players[event.player_index]
@@ -1266,13 +1269,13 @@ script.on_event(defines.events.on_gui_click, function(event)
 end)
 
 script.on_event(defines.events.on_gui_elem_changed, function(event)
-	if not (event.element and event.element.valid) then 
-		return 
+	if not (event.element and event.element.valid) then
+		return
 	end
-	if not (event.element.parent) then 
-		return 
+	if not (event.element.parent) then
+		return
 	end
-	
+
 	if event.element.parent.name == "item-black-white-list" then
 		processElemGui(event,"BWitems")
 	elseif event.element.parent.name == "fluid-black-white-list" then
@@ -1281,10 +1284,10 @@ script.on_event(defines.events.on_gui_elem_changed, function(event)
 end)
 
 script.on_event(defines.events.on_gui_text_changed, function(event)
-	if not (event.element and event.element.valid) then 
-		return 
+	if not (event.element and event.element.valid) then
+		return
 	end
-	
+
 	if event.element.name == "clusterio-electricity-field" then
 		local newMax = tonumber(event.element.text)
 		if newMax and newMax >= 0 then
@@ -1303,14 +1306,14 @@ end
 
 --------------------------
 --[[Some random events]]--
--------------------------- 
-script.on_event(defines.events.on_player_joined_game,function(event) 
-	if game.players[event.player_index].admin then  
+--------------------------
+script.on_event(defines.events.on_player_joined_game,function(event)
+	if game.players[event.player_index].admin then
 		makeConfigButton(game.players[event.player_index].gui.top)
 	end
 end)
 
-script.on_event(defines.events.on_player_died,function(event) 
+script.on_event(defines.events.on_player_died,function(event)
 	--local msg="!shout "..game.players[event.player_index].name.." has been killed"
 	--if event.cause~=nil then if event.cause.name~="locomotive" then return end msg=msg.." by "..event.cause.name else msg=msg.."." end
 	game.write_file("alerts.txt","player_died, "..game.players[event.player_index].name.." has been killed by "..(event.cause or {name="unknown"}).name,true)
