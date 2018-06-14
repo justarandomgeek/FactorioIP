@@ -1064,7 +1064,7 @@ remote.add_interface("clusterio",
 	getSignalMaps = function()
 		-- return maps for use by external tools
 		-- id_to_signal is sparse int indexes (js will use stringy numbers), signal_to_id is map["type"]["name"] -> id
-		return json.encode({id_to_signal_map=global.id_to_signal_map, signal_to_id_map=global.signal_to_id_map})
+		rcon.print(json.encode({id_to_signal_map=global.id_to_signal_map, signal_to_id_map=global.signal_to_id_map}))
 	end
 })
 
