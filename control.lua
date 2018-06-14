@@ -1,7 +1,8 @@
+require("util")
 require("config")
 require("LinkedList")
 local json = require("json")
-
+require("datastring")
 ------------------------------------------------------------
 --[[Method that handle creation and deletion of entities]]--
 ------------------------------------------------------------
@@ -244,8 +245,24 @@ function Reset()
 	global.lastElectricityUpdate = 0
 	global.maxElectricity = 100000000000000 / ELECTRICITY_RATIO --100TJ assuming a ratio of 1.000.000
 
+
+	-- Maps for signalid <> Signal
+	global.id_to_signal_map={}
+	global.signal_to_id_map={virtual={},fluid={},item={}}
+	for _,v in pairs(game.virtual_signal_prototypes) do 
+		global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=v.name, type="virtual"}
+		global.signal_to_id_map.virtual[v.name]=#global.id_to_signal_map
+	end
+	for _,f in pairs(game.fluid_prototypes) do
+		global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=f.name, type="fluid"} 
+		global.signal_to_id_map.fluid[f.name]=#global.id_to_signal_map
+	end
+	for _,i in pairs(game.item_prototypes) do 
+		global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=i.name, type="item"} 
+		global.signal_to_id_map.item[i.name]=#global.id_to_signal_map
+	end
 	global.rxControls = {}
-  global.rxBuffer = {}
+	global.rxBuffer = {}
 	global.txControls = {}
 	global.invControls = {}
 
@@ -799,40 +816,13 @@ end
 ---------------------------------
 --[[Update combinator methods]]--
 ---------------------------------
-local validsignals
 function AddFrameToRXBuffer(frame)
-  if not validsignals then
-    validsignals = {
-      ["virtual"] = game.virtual_signal_prototypes,
-      ["fluid"]	 = game.fluid_prototypes,
-      ["item"]		= game.item_prototypes
-    }
-  end
-  -- Add a frame to the buffer. return remaining space in buffer
-
+	--game.print("RXb"..game.tick..":"..serpent.block(frame))
 
 	-- if buffer is full, drop frame
 	if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
 
-	-- frame = {{count=42,name="signal-grey",type="virtual"},{...},...}
-	local signals = {}
-	local index = 1
-
-	for _,signal in pairs(frame) do
-		if validsignals[signal.type] and validsignals[signal.type][signal.name] then
-			signals[index] =
-				{
-					index=index,
-					count=signal.count,
-					signal={ name=signal.name, type=signal.type }
-				}
-			index = index + 1
-			--TODO: break if too many?
-			--TODO: error token on mismatched signals? maybe mismatch1-n signals?
-		end
-	end
-
-	if index > 1 then table.insert(global.rxBuffer,signals) end
+	table.insert(global.rxBuffer,frame)
 
 	return MAX_RX_BUFFER_SIZE - #global.rxBuffer
 end
@@ -840,45 +830,65 @@ end
 function HandleTXCombinators()
 	-- Check all TX Combinators, and if condition satisfied, add frame to transmit buffer
 
-	-- frame = {{count=42,name="signal-grey",type="virtual"},{...},...}
-	local signals = {["item"]={},["virtual"]={},["fluid"]={}}
+	--[[
+	txsignals = {
+		dstid = int
+		srcid = int
+		data = {
+			[signalid]=value,
+			[signalid]=value,
+			...
+		}
+	}
+	--]]
+	local txsignals = {
+		srcid=global.worldID or -1,
+		data={}
+	}
 	for i,txControl in pairs(global.txControls) do
 		if txControl.valid then
+			-- frame = {{count=42,signal={name="signal-grey",type="virtual"}},{...},...}
 			local frame = txControl.signals_last_tick
 			if frame then
 				for _,signal in pairs(frame) do
-					local signalType = signal.signal.type
 					local signalName = signal.signal.name
-					signals[signalType][signalName] = (signals[signalType][signalName] or 0) + signal.count
+					if signalName == "signal-srcid"  or  signalName == "signal-srctick" then
+						-- skip these two, to enforce correct values.
+					elseif signalName == "signal-dstid" then
+						-- dstid has a special field to go in (this is mostly to make unicast easier on the js side)
+						--game.print("TX"..game.tick..":".."dstid"..signal.count)
+						txsignals.dstid = (txsignals.dstid or 0) + signal.count
+					else
+						local sigid = global.signal_to_id_map[signal.signal.type][signalName]
+						txsignals.data[sigid] = (txsignals.data[sigid] or 0) + signal.count
+					end
 				end
 			end
 		end
 	end
 	
 	--Don't send the exact same signals in a row
-	if AreTablesSame(global.oldTXSignals, signals) then
-		global.oldTXSignals = signals
+	-- have to clear tick from old frame and compare before adding to new or it'll always differ
+	local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
+	global.oldTXSignals.data[sigtick] = nil
+	if table.compare(global.oldTXSignals, txsignals) then
+		global.oldTXSignals = txsignals
 		return
-	end
-	global.oldTXSignals = signals
+	else
+		global.oldTXSignals = txsignals
 
-	local frame = {}
-	for type,arr in pairs(signals) do
-		for name,count in pairs(arr) do
-			table.insert(frame,{count=count,name=name,type=type})
+		if txsignals.dstid then
+			
+			txsignals.data[sigtick] = game.tick
+			
+			--game.print("TX"..game.tick..":"..serpent.block(txsignals))
+			local outstr = WriteFrame(txsignals)
+			--TODO buffer for rcon
+			--AddFrameToTXBuffer(outstr)
+
+			-- Loopback for testing
+			AddFrameToRXBuffer(outstr)
 		end
-	end
-
-	if #frame > 0 then
-		if global.worldID then
-			table.insert(frame,1,{count=global.worldID,name="signal-srcid",type="virtual"})
-		end
-		table.insert(frame,{count=game.tick,name="signal-srctick",type="virtual"})
-		game.write_file(TX_BUFFER_FILE, json:encode(frame).."\n", true, global.write_file_player or 0)
-
-		-- Loopback for testing
-		--AddFrameToRXBuffer(frame)
-
 	end
 end
 
@@ -922,7 +932,9 @@ end
 function UpdateRXCombinators()
 	-- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
 	if #global.rxBuffer > 0 then
-		local frame = table.remove(global.rxBuffer)
+		local frame = ReadFrame(table.remove(global.rxBuffer))
+		--game.print("RX:"..serpent.block(frame))
+		
 		for i,rxControl in pairs(global.rxControls) do
 			if rxControl.valid then
 				rxControl.parameters = {parameters = frame}

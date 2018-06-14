@@ -36,8 +36,9 @@ OUTPUT_ELECTRICITY_ICON_PATH = nil
 ELECTRICITY_ITEM_NAME = "electricity"
 ELECTRICITY_RATIO = 1000000 -- 1.000.000,  1 = 1MJ
 
-MAX_RX_BUFFER_SIZE = 40 -- slightly more than one second
+MAX_RX_BUFFER_SIZE = 60 -- one second of buffer
 RX_COMBINATOR_NAME = "get-combinator"
+MAX_TX_BUFFER_SIZE = 60 -- one second of buffer if continuously transmitting (more if not)
 TX_COMBINATOR_NAME = "put-combinator"
 INV_COMBINATOR_NAME = "inventory-combinator"
 
