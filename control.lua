@@ -900,7 +900,7 @@ function HandleTXCombinators()
 			global.txStorageIndex = global.txStorageIndex + 1
 		
 			-- Loopback for testing
-			AddFrameToRXBuffer(outstr)
+			--AddFrameToRXBuffer(outstr)
 		end
 	end
 end
