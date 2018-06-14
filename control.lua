@@ -837,8 +837,8 @@ function HandleTXCombinators()
 
 	--[[
 	txsignals = {
-		dstid = int
-		srcid = int
+		dstid = int or nil
+		srcid = int or nil
 		data = {
 			[signalid]=value,
 			[signalid]=value,
@@ -848,7 +848,7 @@ function HandleTXCombinators()
 	--]]
 	local hassignals = false
 	local txsignals = {
-		srcid=global.worldID or -1,
+		srcid=global.worldID,
 		data={}
 	}
 	for i,txControl in pairs(global.txControls) do
@@ -874,17 +874,19 @@ function HandleTXCombinators()
 		end
 	end
 	
-	--Don't send the exact same signals in a row
-	-- have to clear tick from old frame and compare before adding to new or it'll always differ
-	local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
-	global.oldTXSignals.data[sigtick] = nil
-	if AreTablesSame(global.oldTXSignals, txsignals) then
-		global.oldTXSignals = txsignals
-		return
-	else
-		global.oldTXSignals = txsignals
+	if hassignals then
 
-		if hassignals then
+		--Don't send the exact same signals in a row
+		-- have to clear tick from old frame and compare before adding to new or it'll always differ
+		local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
+		global.oldTXSignals.data[sigtick] = nil
+		if AreTablesSame(global.oldTXSignals, txsignals) then
+			global.oldTXSignals = txsignals
+			return
+		else
+			global.oldTXSignals = txsignals
+
+		
 			
 			txsignals.data[sigtick] = game.tick
 			
@@ -894,7 +896,7 @@ function HandleTXCombinators()
 			--Will override the oldest ticks signals if there isn't space for more.
 			--The limit is there because otherwise the content of this table could
 			--end up using a lot of memory.
-			global.txSignals[(global.txStorageIndex % MAX_TX_BUFFER_SIZE) + 1] = table.concat(signalStrings, ";")
+			global.txSignals[(global.txStorageIndex % MAX_TX_BUFFER_SIZE) + 1] = outstr
 			global.txStorageIndex = global.txStorageIndex + 1
 		
 			-- Loopback for testing
