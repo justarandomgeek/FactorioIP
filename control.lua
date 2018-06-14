@@ -265,6 +265,11 @@ function Reset()
 	global.rxBuffer = {}
 	global.txControls = {}
 	global.invControls = {}
+	global.txSignals = {}
+	--Need to start at 0 because the first add does + 1
+	--and the first index can't be null because otherwise
+	--table.concat will throw an error
+	global.txStorageIndex = 0
 
 	AddAllEntitiesOfNames(
 	{
@@ -841,6 +846,7 @@ function HandleTXCombinators()
 		}
 	}
 	--]]
+	local hassignals = false
 	local txsignals = {
 		srcid=global.worldID or -1,
 		data={}
@@ -861,6 +867,7 @@ function HandleTXCombinators()
 					else
 						local sigid = global.signal_to_id_map[signal.signal.type][signalName]
 						txsignals.data[sigid] = (txsignals.data[sigid] or 0) + signal.count
+						hassignals = true
 					end
 				end
 			end
@@ -871,21 +878,25 @@ function HandleTXCombinators()
 	-- have to clear tick from old frame and compare before adding to new or it'll always differ
 	local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
 	global.oldTXSignals.data[sigtick] = nil
-	if table.compare(global.oldTXSignals, txsignals) then
+	if AreTablesSame(global.oldTXSignals, txsignals) then
 		global.oldTXSignals = txsignals
 		return
 	else
 		global.oldTXSignals = txsignals
 
-		if txsignals.dstid then
+		if hassignals then
 			
 			txsignals.data[sigtick] = game.tick
 			
 			--game.print("TX"..game.tick..":"..serpent.block(txsignals))
 			local outstr = WriteFrame(txsignals)
-			--TODO buffer for rcon
-			--AddFrameToTXBuffer(outstr)
-
+			
+			--Will override the oldest ticks signals if there isn't space for more.
+			--The limit is there because otherwise the content of this table could
+			--end up using a lot of memory.
+			global.txSignals[(global.txStorageIndex % MAX_TX_BUFFER_SIZE) + 1] = table.concat(signalStrings, ";")
+			global.txStorageIndex = global.txStorageIndex + 1
+		
 			-- Loopback for testing
 			AddFrameToRXBuffer(outstr)
 		end
@@ -1039,6 +1050,19 @@ remote.add_interface("clusterio",
 	setWorldID = function(newid)
 		global.worldID = newid
 		UpdateInvCombinators()
+	end,
+	getTXSignals = function()
+		rcon.print(table.concat(global.txSignals, "\n"))
+		global.txSignals = {}
+		--Need to start at 0 because the first add does + 1
+		--and the first index can't be null because otherwise
+		--table.concat will throw an error
+		global.txStorageIndex = 0
+	end,
+	getSignalMaps = function()
+		-- return maps for use by external tools
+		-- id_to_signal is sparse int indexes (js will use stringy numbers), signal_to_id is map["type"]["name"] -> id
+		return json.encode({id_to_signal_map=global.id_to_signal_map, signal_to_id_map=global.signal_to_id_map})
 	end
 })
 
