@@ -212,14 +212,11 @@ MakeLogisticEntity(table.deepcopy(data.raw["storage-tank"]["storage-tank"]),	INP
 --------------------------------------------------------
 --[[This section is purely to create the output tank]]--
 --------------------------------------------------------
-
-local CRAFING_FLUID_CATEGORY_NAME = "crafting-fluids"
-
 data:extend(
 {
 	{
 		type = "recipe-category",
-		name = CRAFING_FLUID_CATEGORY_NAME
+		name = CRAFTING_FLUID_CATEGORY_NAME
 	}
 })
 
@@ -241,33 +238,11 @@ fluidCreator.fluid_boxes =
 	},
 	off_when_no_fluid_recipe = false
 }
-fluidCreator.crafting_categories = {CRAFING_FLUID_CATEGORY_NAME}
+fluidCreator.crafting_categories = {CRAFTING_FLUID_CATEGORY_NAME}
 fluidCreator.energy_usage = "1kW"
 fluidCreator.ingredient_count = 1
 fluidCreator.module_specification.module_slots = 0
 
-for k,v in pairs(data.raw.fluid) do
-	data:extend(
-	{
-		{
-			type = "recipe",
-			name = ("get-"..v.name),
-			icon = v.icon,
-			icon_size = 32,
-			category = CRAFING_FLUID_CATEGORY_NAME,
-			--localised_name = {v.name},
-			energy_required = 1,
-			subgroup = "fill-barrel",
-			order = "b[fill-crude-oil-barrel]",
-			enabled = true,
-			ingredients = {},
-			results=
-			{
-				{type="fluid", name=v.name, amount=-1}
-			}
-		}
-	})
-end
 
 --------------------------------------
 --[[Making electric tranfer things]]--
@@ -354,7 +329,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-srctick",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_srctick.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[1srctick]"
@@ -362,26 +337,34 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-srcid",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_srcid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
 		order = "e[clusterio]-[2srcid]"
 	},
 	{
 		type = "virtual-signal",
-		name = "signal-localid",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		name = "signal-dstid",
+		icon = "__clusterio__/graphics/icons/signal_dstid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[3localid]"
+		order = "e[clusterio]-[3dstid]"
+	},
+	{
+		type = "virtual-signal",
+		name = "signal-localid",
+		icon = "__clusterio__/graphics/icons/signal_localid.png",
+		icon_size = 32,
+		subgroup = "virtual-signal-clusterio",
+		order = "e[clusterio]-[4localid]"
 	},
 	{
 		type = "virtual-signal",
 		name = "signal-unixtime",
-		icon = "__base__/graphics/icons/signal/signal_grey.png",
+		icon = "__clusterio__/graphics/icons/signal_unixtime.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[4unixtime]"
+		order = "e[clusterio]-[5unixtime]"
 	},
 }
 
