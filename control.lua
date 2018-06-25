@@ -1,4 +1,5 @@
 require("config")
+require("mod-gui")
 require("LinkedList")
 local json = require("json")
 
@@ -1297,9 +1298,8 @@ script.on_event(defines.events.on_gui_text_changed, function(event)
 end)
 
 function makeConfigButton(parent)
-	if not parent["clusterio-main-config-gui-button"] then
-		local pane = parent.add{type = "frame", name = "clusterio-main-config-gui-button", direction = "vertical"}
-		pane.add{type = "button", name = "clusterio-main-config-gui-toggle-button", caption = "config"}
+	if not parent["clusterio-main-config-gui-toggle-button"] then
+		parent.add{type = "sprite-button", name = "clusterio-main-config-gui-toggle-button", sprite="clusterio"}
     end
 end
 
@@ -1309,7 +1309,11 @@ end
 --------------------------
 script.on_event(defines.events.on_player_joined_game,function(event)
 	if game.players[event.player_index].admin then
-		makeConfigButton(game.players[event.player_index].gui.top)
+		if game.players[event.player_index].gui.top["clusterio-main-config-gui-button"] then
+			game.players[event.player_index].gui.top["clusterio-main-config-gui-button"].destroy()
+		end
+
+		makeConfigButton(mod_gui.get_button_flow(game.players[event.player_index]))
 	end
 end)
 

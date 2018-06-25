@@ -462,3 +462,18 @@ data:extend{
 		requester_paste_multiplier = 1
 	},
 }
+
+data:extend(
+        {
+            {
+                type = "sprite",
+                name = "clusterio",
+                filename = "__clusterio__/graphics/icons/clusterio.png",
+                priority = "medium",
+                width = 128,
+                height = 128,
+                flags = { "icon" }
+            }
+
+        }
+)
