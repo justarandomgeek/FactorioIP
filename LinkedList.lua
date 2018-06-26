@@ -80,16 +80,16 @@ function RemoveLink(linkedList, dataIdentifier)
 
 		--Need update the first link and last link because
 		--this link might be one or both of those.
-		if linkedList.firstLink == link then
+		if linkedList.firstLink == index then
 			linkedList.firstLink = link.nextLink
 		end
-		if linkedList.lastLink == link then
+		if linkedList.lastLink == index then
 			linkedList.lastLink = link.prevLink
 		end
 
 		--The iterators current link might be this link so to remove it
 		--the iterator should move to the next link
-		if linkedList.iterator.currentLink == link then
+		if linkedList.iterator.currentLink == index then
 			linkedList.iterator.currentLink = linkedList[link.nextLink]
 		end
 
