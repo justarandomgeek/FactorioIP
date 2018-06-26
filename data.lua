@@ -84,7 +84,7 @@ data:extend(
 	{
 		type = "item-group",
 		name = "test-group",
-		icon = "__clusterio__/graphics/icons/clusterio.png",
+		icon = "__clusterio__/graphics/tech.png",
 		icon_size = 128,
 		inventory_order = "f",
 		order = "e"
