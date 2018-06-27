@@ -1,0 +1,13 @@
+{
+    "output_directory": "../mods",
+    "info":{
+        "name": "clusterio",
+        "version": "1.13.1",
+        "factorio_version": "0.16",
+        "title": "Clusterio",
+        "author": "Danielv123 & Keyboardhack & justarandomgeek & AreYouScared & psihius & Godmave",
+        "homepage": "https://github.com/Danielv123/factorioClusterio",
+        "contact": "n/a",
+        "description": "Allows transfer of items, fluids, research and signals between servers. *Server owners, see https://github.com/Danielv123/factorioClusterio for installation instructions*",
+        "dependencies": ["base >= 0.16"] }
+}
