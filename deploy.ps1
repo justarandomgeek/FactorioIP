@@ -37,6 +37,6 @@ if (Test-Path "$ReleaseName.zip")
 }
 
 Write-Output "Making Zip File"
-7z.exe a "$ReleaseName.zip" "$ReleaseName"
+& 'C:\Program Files\7-Zip\7z.exe' a "$ReleaseName.zip" "$ReleaseName"
 
 Remove-Item $ReleaseName -Recurse
