@@ -90,7 +90,7 @@ function RemoveLink(linkedList, dataIdentifier)
 		--The iterators current link might be this link so to remove it
 		--the iterator should move to the next link
 		if linkedList.iterator.currentLink == index then
-			linkedList.iterator.currentLink = linkedList[link.nextLink]
+			linkedList.iterator.currentLink = link.nextLink
 		end
 
 		linkedList.count = linkedList.count - 1
