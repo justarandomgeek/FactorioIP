@@ -85,7 +85,7 @@ data:extend(
 		type = "item-group",
 		name = "test-group",
 		icon = "__clusterio__/graphics/tech.png",
-		icon_size = 256,
+		icon_size = 128,
 		inventory_order = "f",
 		order = "e"
 	},
@@ -184,6 +184,11 @@ putChest.icon = INPUT_CHEST_ICON_PATH
 putChest.name = INPUT_CHEST_NAME
 putChest.icon_size = INPUT_CHEST_ICON_SIZE
 
+--[[
+ Increases inv size to better represent the size of the building
+]]
+putChest.inventory_size = 60
+
 
 getChest = table.deepcopy(data.raw["logistic-container"]["logistic-chest-requester"])
 getChest.picture = {
@@ -201,6 +206,14 @@ getChest.minable = {mining_time = 4, result = OUTPUT_CHEST_NAME}
 getChest.name = OUTPUT_CHEST_NAME
 getChest.icon = OUTPUT_CHEST_ICON_PATH
 getChest.icon_size = OUTPUT_CHEST_ICON_SIZE
+
+--[[
+ Setting the getChest to be a type of "Buffer"
+ Also increases inv size and logi slots to better represent the size of the building
+]]
+getChest.logistic_mode = "buffer"
+getChest.inventory_size = 60
+getChest.logistic_slots_count = 18
 
 data:extend({
 	getChest,
@@ -462,3 +475,18 @@ data:extend{
 		requester_paste_multiplier = 1
 	},
 }
+
+data:extend(
+        {
+            {
+                type = "sprite",
+                name = "clusterio",
+                filename = "__clusterio__/graphics/icons/clusterio.png",
+                priority = "medium",
+                width = 128,
+                height = 128,
+                flags = { "icon" }
+            }
+
+        }
+)

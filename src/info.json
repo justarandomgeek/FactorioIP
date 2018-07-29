@@ -2,9 +2,9 @@
 {
 "name": "clusterio",
 "title": "Clusterio",
-"version": "1.12.0",
-"date": "31-12-2016",
-"author": "Danielv123 & Keyboardhack & justarandomgeek & AreYouScared & psihius",
+"version": "1.13.1",
+"date": "25-06-2018",
+"author": "Danielv123 & Keyboardhack & justarandomgeek & AreYouScared & psihius & Godmave",
 "dependencies": ["base >= 0.13"],
 "factorio_version": "0.16",
 "description": "Allows transfer of items, fluids, research and signals between servers. *Server owners, see https://github.com/Danielv123/factorioClusterio for installation instructions*"
