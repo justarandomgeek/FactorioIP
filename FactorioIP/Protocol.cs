@@ -93,8 +93,10 @@ namespace FactorioIP
         public IPFlags flags => (IPFlags)((flags_fragment>>13)&7);
         public UInt16 fragmentOffset => (UInt16)(flags_fragment & 0x1fff);
 
+#pragma warning disable CS0618 // Type or member is obsolete
         public IPAddress source { get => new IPAddress(sourceraw); set { this.sourceraw = (UInt32)value.Address; } }
         public IPAddress dest { get => new IPAddress(destraw); set { this.destraw = (UInt32)value.Address; } }
+#pragma warning restore CS0618 // Type or member is obsolete
 
         public static IPv4Header FromBytes(byte[] arr, int startIndex = 0)
         {

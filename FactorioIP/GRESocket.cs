@@ -19,12 +19,7 @@ namespace FactorioIP
     {
         
         Socket gresock;
-        CancellationToken rcvTok = new CancellationToken();
-        CancellationToken sndTok = new CancellationToken();
         Queue<TypeAndPacket> sendbuf = new Queue<TypeAndPacket>();
-
-        Task rcvTask;
-        Task sndTask;
 
         public Action<byte[]> OnReceive { get; set; }
 
@@ -36,20 +31,22 @@ namespace FactorioIP
 
             // set default receive from
             gresock.Connect(host, 0);
+            
 
             this.OnReceive = OnReceive;
 
-            rcvTask = ReceiveTask();
-            sndTask = SendTask();
+            ReceiveTask();
+            SendTask();
 
         }
-        
 
-        async Task ReceiveTask()
+        public string Name => $"GRE:{gresock.RemoteEndPoint}";
+
+        async void ReceiveTask()
         {
             
             
-            while (!rcvTok.IsCancellationRequested)
+            while (true)
             {
                 var data = new byte[1500];
                 await Task.Factory.FromAsync(
@@ -69,9 +66,9 @@ namespace FactorioIP
             sendbuf.Enqueue(packet);
         }
 
-        async Task SendTask()
+        async void SendTask()
         {
-            while (!sndTok.IsCancellationRequested)
+            while (true)
             {
                 if (sendbuf.Count > 0)
                 {
@@ -90,7 +87,7 @@ namespace FactorioIP
                             var v4outHeader = IPv4Header.FromBytes(payload.Data, 0);
                             Console.WriteLine($"Type: {v4outHeader.protocol} Size: {v4outHeader.totalLen} From: {v4outHeader.source} To: {v4outHeader.dest}");
                             break;
-                        case 0x88B5:
+                        case 0x88B5:// code for private experimentation
                             //Console.WriteLine($"FCP");
                             break;
                         default:
@@ -112,7 +109,7 @@ namespace FactorioIP
                 else
                 {
                     //TODO: better way to wait for new packets?
-                    await Task.Delay(1, sndTok);
+                    await Task.Delay(1);
                 }
             }
 

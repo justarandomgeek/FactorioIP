@@ -45,7 +45,7 @@ Feathernet Control Protocol provides link-layer configuration services, includin
 | 2            | Neighbor Advertise        |
 
 
-When a node comes up without an address, it MAY select one automatically. To do this, the node takes a random number a candidate address, and broadcasts a Neighbor Solicit for that address. If no node answers within 180 ticks, the node broadcasts a Neighbor Advertise itself. If the node receives a Neighbor Advertise in response to the Solicit, it selects a new candidate address and starts again.
+When a node comes up without an address, it MAY select one automatically. To do this, the node takes a random number as a candidate address, and broadcasts a Neighbor Solicit for that address. If no node answers within 180 ticks, the node broadcasts a Neighbor Advertise itself. If the node receives a Neighbor Advertise in response to the Solicit, it selects a new candidate address and starts again.
 
 When any node receives a Neighbor Solicit for it's own address, it MUST respond with a Neighbor Advertise.
 
