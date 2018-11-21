@@ -91,7 +91,7 @@ namespace FactorioIP
 
         public PackedFrame Pack(SignalMap map)
         {
-            var sigs = signals.Select(s => new { signal = s, id = map.BySignal(s.type, s.name) }).OrderBy(s => s.id);
+            var sigs = signals.Select(s => new { signal = s, id = map.BySignal(s.type, s.name) }).Where(s => s.id != 0).OrderBy(s => s.id);
             VarInt lastid = UInt32.MaxValue;
             VarInt first_in_segment = UInt32.MaxValue;
             VarInt sigs_in_segment = 0u;

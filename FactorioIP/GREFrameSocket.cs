@@ -158,23 +158,24 @@ namespace FactorioIP
                     switch ((UInt32)sig0)
                     {
                         case 1:
-                            Console.WriteLine($"FCP Sol {sig1:x8}");
+                            Console.WriteLine($"FCP Sol {sig1:x8} {frame.srcid:x8}=>{frame.dstid:x8}");
                             type = 0x88B5;
                             size = 8;
                             break;
                         case 2:
-                            Console.WriteLine($"FCP Adv {sig1:x8}");
+                            Console.WriteLine($"FCP Adv {sig1:x8} {frame.srcid:x8}=>{frame.dstid:x8}");
                             type = 0x88B5;
                             size = 8;
                             break;
                         default:
-                            Console.WriteLine("Unknown FCP Message");
+                            Console.WriteLine($"Unknown FCP Message {sig0:x8} {sig1:x8} {frame.srcid:x8}=>{frame.dstid:x8}");
                             break;
                     }
                     break;
             }
 
-            if (type != 0)
+            // this isn't a perfect size check, but it's a decent sanity check...
+            if (type != 0 && size <= frame.signals.Count() * 4)
             {
                 var pframe = frame.PackWithZeros(Feathernet_0_16);
                 var bytes = new byte[size];

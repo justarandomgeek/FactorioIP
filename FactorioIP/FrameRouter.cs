@@ -12,8 +12,7 @@ namespace FactorioIP
         List<RoutingFrameSocket> trunks = new List<RoutingFrameSocket>();
 
         // if set, minimum set to build composite map from
-        // use Feathernet 0.16 map if unspecified?
-        public SignalMap FixedMap;// = GREFrameSocket.Feathernet_0_16;
+        public SignalMap FixedMap;
 
         void RoutePacket(UnpackedFrame frame)
         {
@@ -60,6 +59,18 @@ namespace FactorioIP
 
         }
 
+        public void Unregister(EndpointFrameSocket socket)
+        {
+            Console.WriteLine($"Unregistered Socket {socket.Name}");
+            sockets.Remove(socket);
+            
+            foreach (var trunk in trunks)
+            {
+                trunk.AnnouncePeers(LocalPeers);
+            }
+
+        }
+
         public void Register(RoutingFrameSocket socket)
         {
             // trunk registering itself...
@@ -71,7 +82,7 @@ namespace FactorioIP
 
         public void Unregister(RoutingFrameSocket socket)
         {
-            // trunk registering itself...
+            // trunk unregistering itself...
             Console.WriteLine($"Unregistered Trunk {socket.Name}");
             socket.OnReceive = null;
             trunks.Remove(socket);

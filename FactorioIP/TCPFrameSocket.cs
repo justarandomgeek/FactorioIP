@@ -266,6 +266,9 @@ namespace FactorioIP
 
             var pframe = frame.Pack(Map);
 
+            // don't bother sending an empty frame...
+            if (pframe.payload.Length == 2) return;
+
             BinaryFrame bframe = new BinaryFrame();
             bframe.dstid = pframe.dstid;
             bframe.srcid = pframe.srcid;
@@ -273,8 +276,8 @@ namespace FactorioIP
 
             using (var ms = new MemoryStream())
             {
-                stream.WriteByte((byte)TCPMessageType.Frame);
-                formatter.Serialize(stream, bframe);
+                ms.WriteByte((byte)TCPMessageType.Frame);
+                formatter.Serialize(ms, bframe);
 
                 Console.WriteLine($"{Name}: Sending Frame of {frame.signals.Length} signals in {bframe.payload.Length} VarInts");
 
@@ -290,8 +293,8 @@ namespace FactorioIP
             // announce local peers to the remote end of transport link...
             using (var ms = new MemoryStream())
             {
-                stream.WriteByte((byte)TCPMessageType.PeerAnnounce);
-                formatter.Serialize(stream, peers.ToList());
+                ms.WriteByte((byte)TCPMessageType.PeerAnnounce);
+                formatter.Serialize(ms, peers.ToList());
 
                 Console.WriteLine($"{Name}: Sending Peers {peers.Print()}");
 
@@ -307,8 +310,8 @@ namespace FactorioIP
                 {
                     using (var ms = new MemoryStream())
                     {
-                        stream.WriteByte((byte)TCPMessageType.MapUpdate);
-                        formatter.Serialize(stream, newsigs);
+                        ms.WriteByte((byte)TCPMessageType.MapUpdate);
+                        formatter.Serialize(ms, newsigs);
 
                         Console.WriteLine($"{Name}: Sending MapUpdate {newsigs.Count}");
 

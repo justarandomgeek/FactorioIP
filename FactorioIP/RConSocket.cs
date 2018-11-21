@@ -21,92 +21,112 @@ namespace FactorioIP
         bool rconAlive;
 
         public Action<UnpackedFrame> OnReceive { get; set; }
+        public Action<RConSocket> OnConnect { get; set; }
+        public Action<RConSocket> OnDisconnect { get; set; }
 
-        public RConSocket(string host, UInt16 port, string password, Action<UnpackedFrame> OnReceive = null)
+        public RConSocket(string host, UInt16 port, string password, Action<RConSocket> OnConnect = null, Action<RConSocket> OnDisconnect = null )
         {
             this.host = host;
             this.port = port;
             this.password = password;
-            this.OnReceive = OnReceive;
-            
-            // set up an RCON connection
-            rcon = new RCON(host, port, password);
+            this.OnConnect = OnConnect;
+            this.OnDisconnect = OnDisconnect;
 
             StartupTask();
-
-            // wait for ID and map to be fetched, so it gets announced properly...
-            while(Map == null) { Task.Delay(10); }
-
         }
-
 
 
         async void StartupTask()
         {
-
-            //rcon.SendCommandAsync("/RoutingReset").Wait();
-
-            ID = Int32.Parse(await rcon.SendCommandAsync("/RoutingGetID"));
-
-
-            var mapparts = new List<string>();
-
-            var json = new JavaScriptSerializer();
-            var i = 1;
-            string mapstr;
-            do
+            while (rcon == null)
             {
-                mapstr = await rcon.SendCommandAsync($"/RoutingGetMap {i}");
-                mapstr = mapstr.TrimEnd('\0', '\n');
-                mapparts.Add(mapstr);
-                i++;
+                try
+                {
 
-            } while (mapstr.Length >= 3999);
+                    rcon = new RCON(host, port, password);
+                }
+                catch (System.AggregateException)
+                {
+                    Console.WriteLine($"{Name} failed to connect");
+                }
 
-            mapstr = string.Concat(mapparts);
+                if (rcon != null)
+                {
+                    rcon.OnDisconnected += onDisconnected;
 
-            using (var ms = new System.IO.MemoryStream(Convert.FromBase64String(mapstr)))
-            using (var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Decompress))
-            using (var sr = new System.IO.StreamReader(gz))
-            {
-                var mapjson = sr.ReadToEnd();
-                var map = json.Deserialize<IEnumerable<Dictionary<string, string>>>(mapjson);
-                var siglist = map.Select(d => new SignalMap.SignalID { type = (string)d["type"], name = (string)d["name"] });
-                this.Map = new SignalMap(siglist);
+                    //rcon.SendCommandAsync("/RoutingReset").Wait();
+
+                    ID = Int32.Parse(await rcon.SendCommandAsync("/RoutingGetID"));
+
+
+                    var mapparts = new List<string>();
+
+                    var json = new JavaScriptSerializer();
+                    var i = 1;
+                    string mapstr;
+                    do
+                    {
+                        mapstr = await rcon.SendCommandAsync($"/RoutingGetMap {i}");
+                        mapstr = mapstr.TrimEnd('\0', '\n');
+                        mapparts.Add(mapstr);
+                        i++;
+
+                    } while (mapstr.Length >= 3999);
+
+                    mapstr = string.Concat(mapparts);
+
+                    using (var ms = new System.IO.MemoryStream(Convert.FromBase64String(mapstr)))
+                    using (var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Decompress))
+                    using (var sr = new System.IO.StreamReader(gz))
+                    {
+                        var mapjson = sr.ReadToEnd();
+                        var map = json.Deserialize<IEnumerable<Dictionary<string, string>>>(mapjson);
+                        var siglist = map.Select(d => new SignalMap.SignalID { type = (string)d["type"], name = (string)d["name"] });
+                        this.Map = new SignalMap(siglist);
+                    }
+
+                    rconAlive = true;
+                    ReceiveTask();
+                    SendTask();
+
+                    OnConnect?.Invoke(this);
+
+                }
+                else
+                {
+                    // wait 30s
+                    Task.Delay(30000).Wait();
+                }
             }
-
-            rconAlive = true;
-            ReceiveTask();
-            SendTask();
         }
 
         void onDisconnected()
         {
             // declare it dead...
             rconAlive = false;
+            OnDisconnect?.Invoke(this);
 
-            // wait 30s
-            Task.Delay(30000).Wait();
-
-            // reconnect...
-            rcon = new RCON(host, port, password);
-
+            rcon = null;
             StartupTask();
-
         }
 
         public void EnqueueSend(UnpackedFrame packet)
         {
             if (rconAlive)
             {
-                sendbuf.Enqueue(packet.Pack(Map));
+                var pframe = packet.Pack(Map);
+
+                // don't bother sending an empty frame (usually no map, or no map overlap)...
+                if (pframe.payload.Length == 2) return;
+
+                sendbuf.Enqueue(pframe);
             }
         }
 
         public SignalMap Map { get; private set; }
         public VarInt ID { get; private set; }
 
-        public string Name => $"RCON:{host};{port};{ID:X8}";
+        public string Name => $"RCON:{host}:{port}:{ID:X8}";
         public override string ToString() => Name;
 
         async void ReceiveTask()
@@ -142,7 +162,16 @@ namespace FactorioIP
 
                     var bytes = Encoding.UTF8.GetBytes("/RoutingRX ").Concat(payload.Encode()).Concat(new byte[] { 0 }).ToArray();
 
-                    await rcon.SendCommandAsync(bytes);
+                    try
+                    {
+
+                        await rcon.SendCommandAsync(bytes);
+                    }
+                    catch (System.Net.Sockets.SocketException)
+                    {
+                        onDisconnected();
+                        throw;
+                    }
                 }
                 else
                 {
