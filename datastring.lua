@@ -16,14 +16,14 @@ VarInt based on UTF-8, extended for full 32bit ints in 6byte form.
 -- reads an int from str starting at index. Returns value,nextindex
 function ReadVarInt(str,index)
 
-    local c = string.byte(str, index)
+    local c = string.byte(str, index) or 0
     seq = c < 0x80 and 1 or c < 0xE0 and 2 or c < 0xF0 and 3 or c < 0xF8 and 4 or c < 0xFC and 5 or 6
 
     if seq == 1 then
         return c,index+1
-    else        
+    else
         val = bit32.band(c, 2^(8-seq) - 1)
-    
+
         for i=1,seq-1 do
             val = bit32.bor(bit32.lshift(val, 6), bit32.band(string.byte(str, index+i), 0x3F))
         end
@@ -73,7 +73,7 @@ function WriteVarInt(val)
 
     local s = {}
     table.insert(s, string.char(bit32.bor(prefix, bit32.band(bit32.rshift(val,startshift),firstmask))))
-    for shift=startshift-6,0,-6 do 
+    for shift=startshift-6,0,-6 do
         table.insert(s, string.char(bit32.bor(0x80, bit32.band(bit32.rshift(val,shift),0x3f))))
     end
     return table.concat(s)
@@ -145,27 +145,30 @@ end
 
 -- convert a byte string to a frame usable for CC configuration
 function ReadFrame(strdata)
+    --log("ReadFrame ".. serpent.line(strdata))
     local i = 1
     local bytecount = #strdata
     local frame = {}
     local val
 
+    if bytecount == 0 then return nil end
+
     val,i = ReadVarInt(strdata,i)
     --game.print("dstid: " .. val)
-    if global.signal_to_id_map.virtual['signal-dstid'] then 
+    if global.signal_to_id_map.virtual['signal-dstid'] then
     table.insert(frame,{count=val,index=#frame+1,signal={name="signal-dstid",type="virtual"}})
     end
 
     val,i = ReadVarInt(strdata,i)
     --game.print("srcid: " .. val)
-    if global.signal_to_id_map.virtual['signal-srcid'] then 
+    if global.signal_to_id_map.virtual['signal-srcid'] then
     table.insert(frame,{count=val,index=#frame+1,signal={name="signal-srcid",type="virtual"}})
     end
 
     while i < bytecount do
         local firstid
         local segmentsize
-        
+
         firstid,i = ReadVarInt(strdata,i)
         segmentsize,i = ReadVarInt(strdata,i)
 
@@ -180,4 +183,3 @@ function ReadFrame(strdata)
 
     return frame
 end
-
