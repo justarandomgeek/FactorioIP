@@ -51,10 +51,12 @@ namespace FactorioIP
         
         enum TCPState
         {
-            Connected,     // fresh socket, just connected...
-            WaitingForMap, // server waiting for map
-            SendingMap,    // client sending map
-            Ready,         // ready to exchange peers and frames
+            Connected,      // fresh socket, just connected...
+            WaitingForMap,  // server waiting for map
+            SendingMap,     // client sending map
+            Ready,          // ready to exchange peers and frames
+            Dead,           // connection has died. everything should stop and be disposed...
+            Reconnecting,   // connection has died, unregister and reconnect...
         }
 
         enum TCPMessageType : byte
@@ -98,9 +100,9 @@ namespace FactorioIP
 
             State = TCPState.WaitingForMap;
 
+            Console.WriteLine($"{Name}: Listener Connected");
             ReceiveTask();
 
-            Console.WriteLine($"New TCP Socket From Listener: {Name}");
             //will send peers after receiving map and transitioning to Ready
 
         }
@@ -118,15 +120,15 @@ namespace FactorioIP
             State = TCPState.SendingMap;
 
             router.Register(this);
-            ReceiveTask();
 
-            Console.WriteLine($"New TCP Socket: {Name}");
+            Console.WriteLine($"{Name}: Connected");
+            ReceiveTask();
         }
 
 
         async void ReceiveTask()
         {
-            while (true)
+            while (State != TCPState.Dead)
             {
                 if (stream.DataAvailable)
                 {
@@ -211,10 +213,9 @@ namespace FactorioIP
             get => state;
             set
             {
-                var oldstate = state;
-                state = value;
-                if (state != oldstate)
+                if (state != value)
                 {
+                    state = value;
                     switch (state)
                     {
                         case TCPState.Connected:
@@ -234,7 +235,8 @@ namespace FactorioIP
                                 formatter.Serialize(ms, Map.All.ToList());
 
                                 ms.Seek(0, SeekOrigin.Begin);
-                                ms.CopyTo(stream);
+
+                                sendData(ms);
                             }
                             State = TCPState.Ready;
                             break;
@@ -248,8 +250,25 @@ namespace FactorioIP
                             
                             // send peers, frames, mapupdates as they happen
                             break;
-                        default:
+                        case TCPState.Dead:
+                            router.Unregister(this);
+                            Console.WriteLine($"{Name}: Disconnected");
                             break;
+
+                        case TCPState.Reconnecting:
+                            Console.WriteLine($"{Name}: Reconnecting");
+                            var peer = (IPEndPoint)tcp.Client.RemoteEndPoint;
+
+                            tcp = new TcpClient(peer);
+
+                            stream = tcp.GetStream();
+
+                            State = TCPState.SendingMap;
+
+                            break;
+
+                        default:
+                            throw new NotImplementedException();
                     }
                 }
             }
@@ -258,6 +277,27 @@ namespace FactorioIP
         public bool CanRoute(VarInt dst)
         {
             return State == TCPState.Ready && remotePeers.Contains(dst);
+        }
+
+        void sendData(MemoryStream ms)
+        {
+            try
+            {
+                ms.Seek(0, SeekOrigin.Begin);
+                ms.CopyTo(stream);
+            }
+            catch (System.IO.IOException)
+            {
+                if (isServer)
+                {
+                    State = TCPState.Dead;
+                }
+                else
+                {
+                    State = TCPState.Reconnecting;
+                }
+
+            }
         }
 
         public void EnqueueSend(UnpackedFrame frame)
@@ -281,8 +321,7 @@ namespace FactorioIP
 
                 Console.WriteLine($"{Name}: Sending Frame of {frame.signals.Length} signals in {bframe.payload.Length} VarInts");
 
-                ms.Seek(0, SeekOrigin.Begin);
-                ms.CopyTo(stream);
+                sendData(ms);
             }
         }
 
@@ -298,8 +337,7 @@ namespace FactorioIP
 
                 Console.WriteLine($"{Name}: Sending Peers {peers.Print()}");
 
-                ms.Seek(0, SeekOrigin.Begin);
-                ms.CopyTo(stream);
+                sendData(ms);
             }
 
             if (!isServer)
@@ -315,8 +353,7 @@ namespace FactorioIP
 
                         Console.WriteLine($"{Name}: Sending MapUpdate {newsigs.Count}");
 
-                        ms.Seek(0, SeekOrigin.Begin);
-                        ms.CopyTo(stream);
+                        sendData(ms);
                     }
                     Map.AddRange(newsigs);
                 }

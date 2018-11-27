@@ -20,7 +20,8 @@ namespace FactorioIP
             if (frame.dstid == 0xffffffffu)
             {
                 // broadcast frame...
-                foreach (var socket in sockets.Concat<FrameSocket>(trunks))
+                var socks = sockets.Concat<FrameSocket>(trunks).ToArray();
+                foreach (var socket in socks)
                 {
                     // but not back where it came in, lest we loop forever...
                     if (frame.origin != socket)

@@ -42,7 +42,6 @@ namespace FactorioIP
             {
                 try
                 {
-
                     rcon = new RCON(host, port, password);
                 }
                 catch (System.AggregateException)
