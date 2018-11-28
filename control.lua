@@ -90,7 +90,7 @@ script.on_init(function()
 end)
 
 script.on_configuration_changed(function(data)
-	if data.mod_changes and data.mod_changes["clusterio"] then
+	if data.mod_changes and data.mod_changes["routablecombinators"] then
 		Reset()
 	end
 end)

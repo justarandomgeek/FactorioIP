@@ -6,7 +6,7 @@ data:extend(
 {
 	{
 		type = "item-group",
-		name = "test-group",
+		name = "routable-combinators-group",
 		icon = "__routablecombinators__/graphics/tech.png",
 		icon_size = 128,
 		inventory_order = "f",
@@ -15,7 +15,7 @@ data:extend(
 	{
 		type = "item-subgroup",
 		name = "signal-subgroup",
-		group = "test-group",
+		group = "routable-combinators-group",
 		order = "c"
 	}
 })
@@ -25,7 +25,7 @@ data:extend(
 data:extend{
 	{
 		type = "item-subgroup",
-		name = "virtual-signal-clusterio",
+		name = "virtual-signal-routablecombinators",
 		group = "signals",
 		order = "e"
 	},
@@ -34,40 +34,32 @@ data:extend{
 		name = "signal-srctick",
 		icon = "__routablecombinators__/graphics/icons/signal_srctick.png",
 		icon_size = 32,
-		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[1srctick]"
+		subgroup = "virtual-signal-routablecombinators",
+		order = "e[routablecombinators]-[1srctick]"
 	},
 	{
 		type = "virtual-signal",
 		name = "signal-srcid",
 		icon = "__routablecombinators__/graphics/icons/signal_srcid.png",
 		icon_size = 32,
-		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[2srcid]"
+		subgroup = "virtual-signal-routablecombinators",
+		order = "e[routablecombinators]-[2srcid]"
 	},
 	{
 		type = "virtual-signal",
 		name = "signal-dstid",
 		icon = "__routablecombinators__/graphics/icons/signal_dstid.png",
 		icon_size = 32,
-		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[3dstid]"
+		subgroup = "virtual-signal-routablecombinators",
+		order = "e[routablecombinators]-[3dstid]"
 	},
 	{
 		type = "virtual-signal",
 		name = "signal-localid",
 		icon = "__routablecombinators__/graphics/icons/signal_localid.png",
 		icon_size = 32,
-		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[4localid]"
-	},
-	{
-		type = "virtual-signal",
-		name = "signal-unixtime",
-		icon = "__routablecombinators__/graphics/icons/signal_unixtime.png",
-		icon_size = 32,
-		subgroup = "virtual-signal-clusterio",
-		order = "e[clusterio]-[5unixtime]"
+		subgroup = "virtual-signal-routablecombinators",
+		order = "e[routablecombinators]-[4localid]"
 	},
 }
 
@@ -135,18 +127,69 @@ data:extend{
 	},
 }
 
+-- ID Combinator
+local id = table.deepcopy(data.raw["constant-combinator"]["constant-combinator"])
+id.name = ID_COMBINATOR_NAME
+id.minable.result = ID_COMBINATOR_NAME
+data:extend{
+	id,
+	{
+		type = "item",
+		name = ID_COMBINATOR_NAME,
+		icon = id.icon,
+		icon_size = 32,
+		flags = {"goes-to-quickbar"},
+		subgroup = "signal-subgroup",
+		place_result=ID_COMBINATOR_NAME,
+		order = "a[items]-b["..ID_COMBINATOR_NAME.."]",
+		stack_size = 50,
+	},
+	{
+		type = "recipe",
+		name = ID_COMBINATOR_NAME,
+		enabled = true, -- TODO do this on a tech somewhere
+		ingredients =
+		{
+			{"constant-combinator", 1},
+			{"electronic-circuit", 3},
+			{"advanced-circuit", 1}
+		},
+		result = ID_COMBINATOR_NAME,
+		requester_paste_multiplier = 1
+	},
+}
 
-data:extend(
-        {
-            {
-                type = "sprite",
-                name = "clusterio",
-                filename = "__routablecombinators__/graphics/icons/clusterio.png",
-                priority = "medium",
-                width = 128,
-                height = 128,
-                flags = { "icon" }
-            }
 
-        }
-)
+
+data:extend{
+  {
+  	type = "technology",
+  	name = "routablecombinators",
+    icon = "__routablecombinators__/graphics/tech.png",
+    icon_size = 128,
+  	unit = {
+  		count=100,
+      time=15,
+      ingredients = {
+          {"science-pack-1", 1,},
+          {"science-pack-2", 1,},
+        },
+    },
+    prerequisites = {"circuit-network"},
+    effects = {
+      {
+        type = "unlock-recipe",
+        recipe = TX_COMBINATOR_NAME,
+      },
+      {
+        type = "unlock-recipe",
+        recipe = RX_COMBINATOR_NAME,
+      },
+      {
+        type = "unlock-recipe",
+        recipe = ID_COMBINATOR_NAME,
+      },
+    },
+    order = "a-d-e",
+  },
+}
