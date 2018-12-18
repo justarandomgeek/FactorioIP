@@ -24,7 +24,9 @@ namespace FactorioIP
 
         internal PackedFrame(VarInt dst, VarInt src, IEnumerable<VarInt> data, SignalMap map)
         {
+            if (dst == 0) throw new ArgumentOutOfRangeException("dst", "dst must be non-zero");
             dstid = dst;
+            if (src == 0) throw new ArgumentOutOfRangeException("src", "src must be non-zero");
             srcid = src;
             payload = data.ToArray();
             this.map = map;
@@ -74,6 +76,7 @@ namespace FactorioIP
         public override string ToString() => $"{type[0]}:{name} = {count}";
     }
 
+    
     public class UnpackedFrame
     {
         public readonly VarInt dstid;
@@ -84,7 +87,9 @@ namespace FactorioIP
 
         internal UnpackedFrame(VarInt dst, VarInt src, IEnumerable<CircuitFrameValue> sigs)
         {
+            if (dst == 0) throw new ArgumentOutOfRangeException("dst", "dst must be non-zero");
             dstid = dst;
+            if (src == 0) throw new ArgumentOutOfRangeException("src", "src must be non-zero");
             srcid = src;
             signals = sigs.ToArray();
         }
@@ -131,8 +136,8 @@ namespace FactorioIP
 
         public PackedFrame PackWithZeros(SignalMap map)
         {
-            var count = this.signals.Max(cfv => map.BySignal(cfv.type,cfv.name)) - 1;
-            var pf = new PackedFrame(dstid, srcid, new VarInt[count + 3],map);
+            var count = this.signals.Max(cfv => map.BySignal(cfv.type,cfv.name));
+            var pf = new PackedFrame(dstid, srcid, new VarInt[count + 2],map);
             pf.payload[0] = 1;
             pf.payload[1] = count;
             for (var i = 2u; i < pf.payload.Length; i++)

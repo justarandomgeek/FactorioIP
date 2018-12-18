@@ -54,9 +54,16 @@ namespace FactorioIP
                             Console.WriteLine($"Type: {v6inHeader.nextHeader} Payload: {v6inHeader.payloadLen} From: {v6inHeader.source} To: {v6inHeader.dest}");
                             if (v6inHeader.payloadLen + 40 <= ((Feathernet_0_16.Count - 2)  * 4))
                             {
-                                var circpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen).Unpack();
-                                circpacket.origin = this;
-                                OnReceive?.Invoke(circpacket);
+                                if (v6inHeader.nextHeader == 44)
+                                {
+                                    Console.WriteLine("Fragmented packet dropped");
+                                }
+                                else
+                                {
+                                    var circpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen).Unpack();
+                                    circpacket.origin = this;
+                                    OnReceive?.Invoke(circpacket);
+                                }
                             }
                             else
                             {

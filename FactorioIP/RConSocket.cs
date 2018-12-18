@@ -51,7 +51,7 @@ namespace FactorioIP
 
                 if (rcon != null)
                 {
-                    
+                    rcon.OnDisconnected += onDisconnected;
 
                     //rcon.SendCommandAsync("/RoutingReset").Wait();
 
