@@ -51,7 +51,7 @@ namespace FactorioIP
 
                 if (rcon != null)
                 {
-                    rcon.OnDisconnected += onDisconnected;
+                    
 
                     //rcon.SendCommandAsync("/RoutingReset").Wait();
 
@@ -134,18 +134,21 @@ namespace FactorioIP
             {
                 await Task.Delay(20);
 
-                IEnumerable<byte> packets = await rcon.SendCommandAsync(Encoding.UTF8.GetBytes("/RoutingTXBuff\0"));
+                var packets = new ArraySegment<byte>(await rcon.SendCommandAsync(Encoding.UTF8.GetBytes("/RoutingTXBuff\0")));
+                
                 VarInt size;
 
                 while (packets.Count() > 2)
                 {
                     (size, packets) = VarInt.Take(packets);
 
-                    var packet = new PackedFrame(packets.Take(size), Map).Unpack();
-                    packet.origin = this;
-                    OnReceive?.Invoke(packet);
+                    var packet = new ArraySegment<byte>(packets.Array, packets.Offset, size);
 
-                    packets = packets.Skip(size);
+                    var packetframe = new PackedFrame(packet, Map).Unpack();
+                    packetframe.origin = this;
+                    OnReceive?.Invoke(packetframe);
+
+                    packets = new ArraySegment<byte>(packets.Array, packets.Offset + size, packets.Count - size);
                 }
             }
 
@@ -169,7 +172,7 @@ namespace FactorioIP
                     catch (System.Net.Sockets.SocketException)
                     {
                         onDisconnected();
-                        throw;
+                        //throw;
                     }
                 }
                 else

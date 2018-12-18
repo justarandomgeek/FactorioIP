@@ -41,28 +41,28 @@ namespace FactorioIP
                 yield return (byte)value;
                 yield break;
             }
-            else if (value < 0x07ff)
+            else if (value < 0x0800)
             {
                 //--[[2 bytes]]
                 prefix = 0xc0;
                 firstmask = 0x1f;
                 startshift = 6;
             }
-            else if (value < 0xffff)
+            else if (value < 0x10000)
             {
                 //--[[3 bytes]]
                 prefix = 0xe0;
                 firstmask = 0x0f;
                 startshift = 12;
             }
-            else if (value < 0x1fffff)
+            else if (value < 0x200000)
             {
                 //--[[4 bytes]]
                 prefix = 0xf0;
                 firstmask = 0x07;
                 startshift = 18;
             }
-            else if (value < 0x3ffffff)
+            else if (value < 0x4000000)
             {
                 //--[[5 bytes]]
                 prefix = 0xf8;
@@ -85,36 +85,40 @@ namespace FactorioIP
             }
         }
 
-        public static (VarInt, IEnumerable<byte>) Take(IEnumerable<byte> data)
+        public static (VarInt, ArraySegment<byte>) Take(ArraySegment<byte> data)
         {
-            var first = data.FirstOrDefault();
+            if (data.Count == 0)
+            {
+                return (0, data);
+            }
+
+            var first = data.Array[data.Offset];
             if (first == 0)
             {
-                return (0, data.Skip(1));
+                return (0, new ArraySegment<byte>(data.Array, data.Offset + 1, data.Count - 1));
             }
 
             var seq = first < 0x80 ? 1 : first < 0xE0 ? 2 : first < 0xF0 ? 3 : first < 0xF8 ? 4 : first < 0xFC ? 5 : 6;
 
             if (seq == 1)
             {
-                return (first, data.Skip(1));
+                return (first, new ArraySegment<byte>(data.Array, data.Offset + 1, data.Count - 1));
             }
             else
             {
                 UInt32 val = (first & ((1u << (8 - seq)) - 1u));
-                data = data.Skip(1);
+                
                 for (int i = 1; i < seq; i++)
                 {
-                    val = (val << 6) | (data.First() & 0x3Fu);
-                    data = data.Skip(1);
+                    val = (val << 6) | (data.Array[data.Offset+i] & 0x3Fu);
                 }
-                return (val, data);
+                return (val, new ArraySegment<byte>(data.Array, data.Offset + seq, data.Count - seq));
             }
         }
 
-        public static IEnumerable<VarInt> TakeAll(IEnumerable<byte> data)
+        public static IEnumerable<VarInt> TakeAll(ArraySegment<byte> data)
         {
-            while (true)
+            while (data.Count > 0)
             {
                 VarInt val = 0;
                 (val, data) = VarInt.Take(data);
@@ -125,6 +129,25 @@ namespace FactorioIP
 
                 yield return val;
             }
+        }
+
+        public static bool operator ==(VarInt left, VarInt right) => left.value == right.value;
+        public static bool operator !=(VarInt left, VarInt right) => left.value != right.value;
+
+        public static bool operator ==(VarInt left, UInt32 right) => left.value == right;
+        public static bool operator !=(VarInt left, UInt32 right) => left.value != right;
+
+        public static bool operator ==(VarInt left, Int32 right) => left.value == (UInt32)right;
+        public static bool operator !=(VarInt left, Int32 right) => left.value != (UInt32)right;
+
+        public override bool Equals(object obj)
+        {
+            return obj is VarInt vi ? this == vi : obj is UInt32 u ? this == u : obj is Int32 i ? this == i : false;
+        }
+
+        public override int GetHashCode()
+        {
+            return value.GetHashCode();
         }
 
     }

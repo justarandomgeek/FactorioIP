@@ -113,7 +113,7 @@ namespace FactorioIP
             if (ipdest.IsIPv6Multicast)
             {
                 dstid = 0xffffffff;
-                featherdst = 0xffffffff;
+                featherdst = 0;
             }
             else
             {
@@ -174,20 +174,32 @@ namespace FactorioIP
                     break;
             }
 
-            // this isn't a perfect size check, but it's a decent sanity check...
-            if (type != 0 && size <= frame.signals.Count() * 4)
+            if (type != 0)
             {
                 var pframe = frame.PackWithZeros(Feathernet_0_16);
+                if (size % 4 != 0) size += 4 - (size % 4);
                 var bytes = new byte[size];
-                for (int i = 0; i < ((size+3)/4); i++)
+                if (size <= 4 * (pframe.payload.Length - 4))
                 {
-                    bytes[i + 3] = (byte)(pframe.payload[i + 2] >> 0);
-                    bytes[i + 2] = (byte)(pframe.payload[i + 2] >> 8);
-                    bytes[i + 1] = (byte)(pframe.payload[i + 2] >> 16);
-                    bytes[i + 0] = (byte)(pframe.payload[i + 2] >> 24);
-                }
+                    for (int i = 0; i < size; i += 4)
+                    {
+                        UInt32 signal = pframe.payload[(i / 4) + 4];
+                        bytes[i + 3] = (byte)(signal >> 0);
+                        bytes[i + 2] = (byte)(signal >> 8);
+                        bytes[i + 1] = (byte)(signal >> 16);
+                        bytes[i + 0] = (byte)(signal >> 24);
+                    }
 
-                gre.EnqueueSend(new TypeAndPacket { Type = type, Data = bytes });
+                    gre.EnqueueSend(new TypeAndPacket { Type = type, Data = bytes });
+                }
+                else
+                {
+                    Console.WriteLine($"GRE Size Mismatch type=0x{type:x4} size={size}, signals={pframe.payload.Length}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Unrecognized GRE packet type=0x{type:x4} size={size}, signals={frame.signals.Count()}");
             }
         }
 

@@ -14,7 +14,7 @@ namespace FactorioIP
         public readonly VarInt[] payload;
         public readonly SignalMap map;
 
-        public PackedFrame(IEnumerable<byte> bytes, SignalMap map)
+        public PackedFrame(ArraySegment<byte> bytes, SignalMap map)
         {
             (dstid, bytes) = VarInt.Take(bytes);
             (srcid, bytes) = VarInt.Take(bytes);
@@ -91,7 +91,7 @@ namespace FactorioIP
 
         public PackedFrame Pack(SignalMap map)
         {
-            var sigs = signals.Select(s => new { signal = s, id = map.BySignal(s.type, s.name) }).Where(s => s.id != 0).OrderBy(s => s.id);
+            var sigs = signals.Select(s => new { signal = s, id = map.BySignal(s.type, s.name) }).Where(s => s.id != 0).OrderBy(s => s.id).ToArray();
             VarInt lastid = UInt32.MaxValue;
             VarInt first_in_segment = UInt32.MaxValue;
             VarInt sigs_in_segment = 0u;
@@ -107,7 +107,7 @@ namespace FactorioIP
                 }
                 else
                 {
-                    if (lastid != 0)
+                    if (lastid != UInt32.MaxValue)
                     {
                         // write out first in segment, count, data[]
                         payload_data = payload_data.Concat(new[] { first_in_segment, sigs_in_segment }).Concat(segment_data);
@@ -131,12 +131,13 @@ namespace FactorioIP
 
         public PackedFrame PackWithZeros(SignalMap map)
         {
-            var pf = new PackedFrame(dstid, srcid, new VarInt[map.Count+2],map);
+            var count = this.signals.Max(cfv => map.BySignal(cfv.type,cfv.name)) - 1;
+            var pf = new PackedFrame(dstid, srcid, new VarInt[count + 3],map);
             pf.payload[0] = 1;
-            pf.payload[1] = map.Count;
+            pf.payload[1] = count;
             for (var i = 2u; i < pf.payload.Length; i++)
             {
-                var mapping = map.ByID(i-2);
+                var mapping = map.ByID(i-1);
                 pf.payload[i] = signals.FirstOrDefault(s => s.type == mapping.type && s.name == mapping.name).count;
             }
             return pf;

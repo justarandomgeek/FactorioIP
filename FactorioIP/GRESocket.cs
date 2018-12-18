@@ -88,9 +88,10 @@ namespace FactorioIP
                             Console.WriteLine($"Type: {v4outHeader.protocol} Size: {v4outHeader.totalLen} From: {v4outHeader.source} To: {v4outHeader.dest}");
                             break;
                         case 0x88B5:// code for private experimentation
-                            //Console.WriteLine($"FCP");
+                            Console.WriteLine($"FCP");
                             break;
                         default:
+                            Console.WriteLine($"GRE Invalid Type: 0x{payload.Type:x4} {payload.Data.Length} bytes");
                             break;
                     }
 
