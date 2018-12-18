@@ -26,7 +26,7 @@ data:extend{
 	{
 		type = "item-subgroup",
 		name = "virtual-signal-routablecombinators",
-		group = "signals",
+		group = "routable-combinators-group",
 		order = "e"
 	},
 	{

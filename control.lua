@@ -38,6 +38,13 @@ function AddEntity(entity)
 	elseif entity.name == RX_COMBINATOR_NAME then
 		global.rxControls[entity.unit_number] = entity.get_or_create_control_behavior()
 		entity.operable=false
+  elseif entity.name == ID_COMBINATOR_NAME then
+		local control = entity.get_or_create_control_behavior()
+    control.parameters = { parameters = {
+      {index = 1, count = global.worldID or -1, signal = {type = "virtual", name = "signal-localid"}}
+    }}
+
+		entity.operable=false
 	end
 end
 
@@ -121,6 +128,7 @@ function Reset()
 	{
 		RX_COMBINATOR_NAME,
 		TX_COMBINATOR_NAME,
+    ID_COMBINATOR_NAME,
 	})
 end
 
@@ -262,7 +270,7 @@ function UpdateRXCombinators()
 	-- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
 	if #global.rxBuffer > 0 then
 		local frame = ReadFrame(table.remove(global.rxBuffer))
-		--game.print("RX:"..serpent.block(frame))
+		--log("RX:"..serpent.block(frame))
 
 		for i,rxControl in pairs(global.rxControls) do
 			if rxControl.valid then
@@ -298,6 +306,13 @@ end)
 
 commands.add_command("RoutingSetID","",function(cmd)
   global.worldID = tonumber(cmd.parameter)
+
+  if global.worldID > 0x7fffffff then
+    global.worldID = global.worldID - 0x100000000
+  end
+
+  AddAllEntitiesOfNames{ID_COMBINATOR_NAME}
+
 end)
 
 commands.add_command("RoutingRX","",function(cmd)

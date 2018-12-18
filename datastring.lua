@@ -44,22 +44,22 @@ function WriteVarInt(val)
     if val < 0x80 then
         --[[1 byte]]
         return string.char(val)
-    elseif val < 0x07ff then
+    elseif val < 0x0800 then
         --[[2 bytes]]
         prefix = 0xc0
         firstmask = 0x1f
         startshift = 6
-    elseif val < 0xffff then
+    elseif val < 0x10000 then
         --[[3 bytes]]
         prefix = 0xe0
         firstmask = 0x0f
         startshift = 12
-    elseif val < 0x1fffff then
+    elseif val < 0x200000 then
         --[[4 bytes]]
         prefix = 0xf0
         firstmask = 0x07
         startshift = 18
-    elseif val < 0x3ffffff then
+    elseif val < 0x4000000 then
         --[[5 bytes]]
         prefix = 0xf8
         firstmask = 0x03
@@ -154,13 +154,13 @@ function ReadFrame(strdata)
     if bytecount == 0 then return nil end
 
     val,i = ReadVarInt(strdata,i)
-    --game.print("dstid: " .. val)
+    --log("dstid: " .. val)
     if global.signal_to_id_map.virtual['signal-dstid'] then
     table.insert(frame,{count=val,index=#frame+1,signal={name="signal-dstid",type="virtual"}})
     end
 
     val,i = ReadVarInt(strdata,i)
-    --game.print("srcid: " .. val)
+    --log("srcid: " .. val)
     if global.signal_to_id_map.virtual['signal-srcid'] then
     table.insert(frame,{count=val,index=#frame+1,signal={name="signal-srcid",type="virtual"}})
     end
@@ -172,11 +172,11 @@ function ReadFrame(strdata)
         firstid,i = ReadVarInt(strdata,i)
         segmentsize,i = ReadVarInt(strdata,i)
 
-        --game.print("firstid: " .. firstid)
-        --game.print("segmentsize: " .. segmentsize)
+        --log("firstid: " .. firstid)
+        --log("segmentsize: " .. segmentsize)
         for id=firstid,firstid+segmentsize-1 do
             val,i = ReadVarInt(strdata,i)
-            --game.print("val: " .. val)
+            --log("val: " .. val)
             table.insert(frame,{count=val,index=#frame+1,signal=global.id_to_signal_map[id]})
         end
     end
