@@ -1,3 +1,6 @@
+
+| index | signal |
+|-------|--------|
 |    0  |signal-0|
 |    1  |signal-1|
 |    2  |signal-2|
@@ -252,3 +255,4 @@
 |  251  |artillery-turret|
 |  252  |radar|
 |  253  |rocket-silo|
+
