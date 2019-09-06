@@ -44,7 +44,7 @@ function requireany(...)
 end
 
 local crc32 = require 'crc32lua' . crc32_byte
-local bit, name_ = requireany('bit', 'bit32', 'bit.numberlua')
+local bit = bit32
 local bnot = bit.bnot
 local band, bor, bxor = bit.band, bit.bor, bit.bxor
 local lshift, rshift = bit.lshift, bit.rshift

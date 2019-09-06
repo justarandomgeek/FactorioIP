@@ -57,23 +57,18 @@ namespace FactorioIP
 
                     ID = Int32.Parse(await rcon.SendCommandAsync("/RoutingGetID"));
 
-
-                    var mapparts = new List<string>();
-
                     var json = new JavaScriptSerializer();
-                    var i = 1;
-                    string mapstr;
-                    do
+                    string mapstr = await rcon.SendCommandAsync($"/RoutingGetMap");
+                    mapstr = mapstr.TrimEnd('\0', '\n');
+                    var split = mapstr.IndexOf(':');
+                    var len = UInt32.Parse(mapstr.Substring(0,split));
+                    mapstr = mapstr.Substring(split+1);
+
+                    if (mapstr.Length != len)
                     {
-                        mapstr = await rcon.SendCommandAsync($"/RoutingGetMap {i}");
-                        mapstr = mapstr.TrimEnd('\0', '\n');
-                        mapparts.Add(mapstr);
-                        i++;
-
-                    } while (mapstr.Length >= 3999);
-
-                    mapstr = string.Concat(mapparts);
-
+                        throw new Exception("Map Truncated");
+                    }
+                    
                     using (var ms = new System.IO.MemoryStream(Convert.FromBase64String(mapstr)))
                     using (var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionMode.Decompress))
                     using (var sr = new System.IO.StreamReader(gz))

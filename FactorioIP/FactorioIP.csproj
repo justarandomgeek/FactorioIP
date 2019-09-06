@@ -88,6 +88,8 @@
     <Compile Include="FrameSocket.cs" />
     <Compile Include="RConSocket.cs" />
     <Compile Include="SignalMap.cs" />
+    <Compile Include="SignalMap_F17.cs" />
+    <Compile Include="SignalMap_F16.cs" />
     <Compile Include="SocketIOClient.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

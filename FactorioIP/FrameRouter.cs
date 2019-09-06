@@ -30,6 +30,10 @@ namespace FactorioIP
                     }
                 }
             }
+            else if (frame.dstid == 0 || frame.srcid == 0)
+            {
+                // discard improperly addressed packet...
+            }
             else
             {
                 var outsock = sockets.Concat<FrameSocket>(trunks).FirstOrDefault(fs => fs.CanRoute(frame.dstid));

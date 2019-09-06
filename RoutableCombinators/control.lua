@@ -1,7 +1,6 @@
 require("util")
 require("config")
 
-local json = require("json")
 local deflate = require "zlib-deflate"
 local base64 = require "base64"
 require("datastring")
@@ -325,23 +324,10 @@ commands.add_command("RoutingTXBuff","",function(cmd)
   if cmd.player_index and cmd.player_index > 0 then
     game.players[cmd.player_index].print("TX Buffer has ".. #global.txSignals .. " frames")
   else
-    -- put as many as fit in 4000 bytes...
-    if #global.txSignals > 0 then
-
-      local outstr = {}
-      local outsize = 0
-      local s = table.remove(global.txSignals,1)
-      outstr[#outstr+1] = s
-      outsize = #s
-      while outsize < 4000 and #global.txSignals > 0 do
-        s = table.remove(global.txSignals,1)
-        outstr[#outstr+1] = s
-        outsize = outsize + #s
-        first = global.txSignals[1]
-      end
-
+    if next(global.txSignals) then
       -- concat them all and print all in one go, one loooong series of non-zero bytes...
-      rcon.print(table.concat(outstr))
+	  rcon.print(table.concat(global.txSignals))
+	  global.txSignals = {}
     end
   end
 end)
@@ -349,33 +335,15 @@ end)
 local sigmapdata = nil
 
 commands.add_command("RoutingGetMap","",function(cmd)
-  if not sigmapdata then
-    -- return maps for use by external tools
-		-- id_to_signal is sparse int indexes (js will use stringy numbers), signal_to_id is map["type"]["name"] -> id
-    local data = json:encode(global.id_to_signal_map)
-    data = deflate.gzip(data)
-    data = base64.enc(data)
-
-    --split data to 4000 byte chunks and stash in sigmapdata.
-    sigmapdata = {}
-    while #data > 4000 do
-      sigmapdata[#sigmapdata +1] = data:sub(1,4000)
-      data = data:sub(4001)
-    end
-
-    sigmapdata[#sigmapdata +1] = data
+  -- return maps for use by external tools
+  -- id_to_signal is sparse int indexes (js will use stringy numbers), signal_to_id is map["type"]["name"] -> id
+  data = base64.enc(deflate.gzip(game.table_to_json(global.id_to_signal_map)))
+  
+  if cmd.player_index and cmd.player_index > 0 then
+    game.players[cmd.player_index].print("sigmapdata ".. data:len() .. " char")
+  else
+    rcon.print(data:len() .. ":" .. data)
   end
-
-  -- return the requested segment...
-  rcon.print(sigmapdata[tonumber(cmd.parameter) or 1])
-
 end)
 
 commands.add_command("RoutingReset","", Reset)
-
-
-remote.add_interface("routablecombinators",
-{
-	runcode=function(codeToRun) loadstring(codeToRun)() end,
-	reset = Reset,
-})

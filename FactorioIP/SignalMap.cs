@@ -5,7 +5,7 @@ using System.Text;
 
 namespace FactorioIP
 {
-    public class SignalMap
+    public partial class SignalMap
     {
         [Serializable]
         public struct SignalID

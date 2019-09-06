@@ -24,9 +24,7 @@ namespace FactorioIP
 
         internal PackedFrame(VarInt dst, VarInt src, IEnumerable<VarInt> data, SignalMap map)
         {
-            if (dst == 0) throw new ArgumentOutOfRangeException("dst", "dst must be non-zero");
             dstid = dst;
-            if (src == 0) throw new ArgumentOutOfRangeException("src", "src must be non-zero");
             srcid = src;
             payload = data.ToArray();
             this.map = map;
@@ -87,9 +85,7 @@ namespace FactorioIP
 
         internal UnpackedFrame(VarInt dst, VarInt src, IEnumerable<CircuitFrameValue> sigs)
         {
-            if (dst == 0) throw new ArgumentOutOfRangeException("dst", "dst must be non-zero");
             dstid = dst;
-            if (src == 0) throw new ArgumentOutOfRangeException("src", "src must be non-zero");
             srcid = src;
             signals = sigs.ToArray();
         }

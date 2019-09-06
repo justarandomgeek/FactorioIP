@@ -7,7 +7,7 @@ data:extend(
 	{
 		type = "item-group",
 		name = "routable-combinators-group",
-		icon = "__routablecombinators__/graphics/tech.png",
+		icon = "__RoutableCombinators__/graphics/tech.png",
 		icon_size = 128,
 		inventory_order = "f",
 		order = "e"
@@ -32,7 +32,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-srctick",
-		icon = "__routablecombinators__/graphics/icons/signal_srctick.png",
+		icon = "__RoutableCombinators__/graphics/icons/signal_srctick.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-routablecombinators",
 		order = "e[routablecombinators]-[1srctick]"
@@ -40,7 +40,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-srcid",
-		icon = "__routablecombinators__/graphics/icons/signal_srcid.png",
+		icon = "__RoutableCombinators__/graphics/icons/signal_srcid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-routablecombinators",
 		order = "e[routablecombinators]-[2srcid]"
@@ -48,7 +48,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-dstid",
-		icon = "__routablecombinators__/graphics/icons/signal_dstid.png",
+		icon = "__RoutableCombinators__/graphics/icons/signal_dstid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-routablecombinators",
 		order = "e[routablecombinators]-[3dstid]"
@@ -56,7 +56,7 @@ data:extend{
 	{
 		type = "virtual-signal",
 		name = "signal-localid",
-		icon = "__routablecombinators__/graphics/icons/signal_localid.png",
+		icon = "__RoutableCombinators__/graphics/icons/signal_localid.png",
 		icon_size = 32,
 		subgroup = "virtual-signal-routablecombinators",
 		order = "e[routablecombinators]-[4localid]"
@@ -74,7 +74,6 @@ data:extend{
 		name = TX_COMBINATOR_NAME,
 		icon = tx.icon,
 		icon_size = 32,
-		flags = {"goes-to-quickbar"},
 		subgroup = "signal-subgroup",
 		place_result=TX_COMBINATOR_NAME,
 		order = "a[items]-b["..TX_COMBINATOR_NAME.."]",
@@ -106,7 +105,6 @@ data:extend{
 		name = RX_COMBINATOR_NAME,
 		icon = rx.icon,
 		icon_size = 32,
-		flags = {"goes-to-quickbar"},
 		subgroup = "signal-subgroup",
 		place_result=RX_COMBINATOR_NAME,
 		order = "a[items]-b["..RX_COMBINATOR_NAME.."]",
@@ -138,7 +136,6 @@ data:extend{
 		name = ID_COMBINATOR_NAME,
 		icon = id.icon,
 		icon_size = 32,
-		flags = {"goes-to-quickbar"},
 		subgroup = "signal-subgroup",
 		place_result=ID_COMBINATOR_NAME,
 		order = "a[items]-b["..ID_COMBINATOR_NAME.."]",
@@ -165,14 +162,14 @@ data:extend{
   {
   	type = "technology",
   	name = "routablecombinators",
-    icon = "__routablecombinators__/graphics/tech.png",
+    icon = "__RoutableCombinators__/graphics/tech.png",
     icon_size = 128,
   	unit = {
   		count=100,
       time=15,
       ingredients = {
-          {"science-pack-1", 1,},
-          {"science-pack-2", 1,},
+          {"automation-science-pack", 1,},
+          {"logistic-science-pack", 1,},
         },
     },
     prerequisites = {"circuit-network"},

@@ -10,6 +10,6 @@
 		/// <summary>
 		/// The maximum size of an RCON packet.
 		/// </summary>
-		internal const int MAX_PACKET_SIZE = 8 * 1024;
+		internal const int MAX_PACKET_SIZE = 32 * 1024;
 	}
 }

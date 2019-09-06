@@ -62,10 +62,11 @@ namespace CoreRCON
 			// Set up TCP listener
 			var e = new SocketAsyncEventArgs();
 			e.Completed += TCPPacketReceived;
-			e.SetBuffer(new byte[Constants.MAX_PACKET_SIZE], 0, Constants.MAX_PACKET_SIZE);
+			e.SetBuffer(new byte[Constants.MAX_PACKET_SIZE], 0, 4);
 
 			// Start listening for responses
 			_tcp.ReceiveAsync(e);
+            
 
 			// Wait for successful authentication
 			_authenticationTask = new TaskCompletionSource<bool>();
@@ -167,27 +168,46 @@ namespace CoreRCON
 		/// </summary>
 		private void TCPPacketReceived(object sender, SocketAsyncEventArgs e)
 		{
-			// Parse out the actual RCON packet
-			RCONPacket packet = RCONPacket.FromBytes(e.Buffer);
+            int size = BitConverter.ToInt32(e.Buffer, 0) + 4;
 
-			if (packet.Type == PacketType.AuthResponse)
-			{
-				// Failed auth responses return with an ID of -1
-				if (packet.Id == -1)
-				{
-					throw new AuthenticationException($"Authentication failed for {_tcp.RemoteEndPoint}.");
-				}
+            if (size > e.Buffer.Length)
+            {
+                throw new OverflowException($"RCON message {size} bytes is larger than TCP buffer {e.Buffer.Length} bytes");
+            }
 
-				// Tell Connect that authentication succeeded
-				_authenticationTask.SetResult(true);
-			}
+            if (e.BytesTransferred + e.Offset < size)
+            {
+                // need more data, put e back for another go...
+                e.SetBuffer(e.Offset + e.BytesTransferred, size - (e.Offset + e.BytesTransferred));
 
-			// Forward to handler
-			RCONPacketReceived(packet);
+                if (!_connected) return;
+                _tcp.ReceiveAsync(e);
+            }
+            else
+            {
+                // Parse out the actual RCON packet
+                RCONPacket packet = RCONPacket.FromBytes(e.Buffer);
 
-			// Continue listening
-			if (!_connected) return;
-			_tcp.ReceiveAsync(e);
+                if (packet.Type == PacketType.AuthResponse)
+                {
+                    // Failed auth responses return with an ID of -1
+                    if (packet.Id == -1)
+                    {
+                        throw new AuthenticationException($"Authentication failed for {_tcp.RemoteEndPoint}.");
+                    }
+
+                    // Tell Connect that authentication succeeded
+                    _authenticationTask.SetResult(true);
+                }
+
+                // Forward to handler
+                RCONPacketReceived(packet);
+
+                // Continue listening
+                if (!_connected) return;
+                e.SetBuffer(0,4);
+                _tcp.ReceiveAsync(e);
+            }
 		}
 
 		/// <summary>

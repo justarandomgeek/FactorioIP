@@ -8,7 +8,7 @@ local signals = {
 
 }
 
-for i = 249,319 do
+for i = 254,319 do
   table.insert(signals, {
     type = "virtual-signal",
     name = "signal-" .. i,

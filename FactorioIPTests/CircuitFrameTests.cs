@@ -11,6 +11,8 @@ namespace FactorioIP.Tests
     [TestClass()]
     public class UnpackedFrameTests
     {
+        static SignalMap testmap = SignalMap.Feathernet_0_17;
+
         [TestMethod()]
         public void PackTest()
         {
@@ -19,7 +21,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-0", count = 42 },
             });
 
-            var pframe = frame.Pack(GREFrameSocket.Feathernet_0_16);
+            var pframe = frame.Pack(testmap);
 
 
             Assert.AreEqual(3, pframe.payload.Length);
@@ -33,7 +35,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-bogus", count = 1337 },
             });
 
-            pframe = frame.Pack(GREFrameSocket.Feathernet_0_16);
+            pframe = frame.Pack(testmap);
 
 
             Assert.AreEqual(3, pframe.payload.Length);
@@ -46,7 +48,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-bogus", count = 1337 },
             });
 
-            pframe = frame.Pack(GREFrameSocket.Feathernet_0_16);
+            pframe = frame.Pack(testmap);
 
 
             Assert.AreEqual(2, pframe.payload.Length);
@@ -61,7 +63,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-8", count = 999 },
             });
 
-            pframe = frame.Pack(GREFrameSocket.Feathernet_0_16);
+            pframe = frame.Pack(testmap);
 
 
             Assert.AreEqual(8, pframe.payload.Length);
@@ -84,7 +86,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-0", count = 42 },
             });
 
-            var pframe = frame.PackWithZeros(GREFrameSocket.Feathernet_0_16);
+            var pframe = frame.PackWithZeros(testmap);
 
 
             Assert.AreEqual(5, pframe.payload.Length);
@@ -100,7 +102,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-bogus", count = 1337 },
             });
 
-            pframe = frame.PackWithZeros(GREFrameSocket.Feathernet_0_16);
+            pframe = frame.PackWithZeros(testmap);
 
 
             Assert.AreEqual(5, pframe.payload.Length);
@@ -115,7 +117,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-bogus", count = 1337 },
             });
 
-            pframe = frame.PackWithZeros(GREFrameSocket.Feathernet_0_16);
+            pframe = frame.PackWithZeros(testmap);
 
 
             Assert.AreEqual(2, pframe.payload.Length);
@@ -130,7 +132,7 @@ namespace FactorioIP.Tests
                 new CircuitFrameValue { type = "virtual", name = "signal-8", count = 999 },
             });
 
-            pframe = frame.PackWithZeros(GREFrameSocket.Feathernet_0_16);
+            pframe = frame.PackWithZeros(testmap);
 
             Assert.AreEqual(13, pframe.payload.Length);
             Assert.AreEqual<VarInt>(1, pframe.payload[0]);
