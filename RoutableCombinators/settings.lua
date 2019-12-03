@@ -2,7 +2,7 @@ data:extend{
   {
     type = "int-setting",
     name = "routablecombinators-rx-buffer-size",
-    setting_type = "global-runtime",
+    setting_type = "runtime-global",
     default_value = 60,
     minimum_value = 1,
     order="routablecombinators-10-rx-buffer-size",
@@ -18,7 +18,7 @@ data:extend{
   {
     type = "int-setting",
     name = "routablecombinators-tx-buffer-size",
-    setting_type = "global-runtime",
+    setting_type = "runtime-global",
     default_value = 60,
     minimum_value = 1,
     order="routablecombinators-20-tx-buffer-size",

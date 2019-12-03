@@ -12,25 +12,6 @@ require("datastring")
 ------------------------------------------------------------
 --[[Method that handle creation and deletion of entities]]--
 ------------------------------------------------------------
-function OnBuiltEntity(event)
-  local entity = event.created_entity
-  if entity.name == "entity-ghost" then return end
-  AddEntity(entity)
-end
-
-function AddAllEntitiesOfNames(names)
-  local filters = {}
-  for i = 1, #names do
-    local name = names[i]
-    filters[#filters + 1] = {name = name}
-  end
-  for _, surface in pairs(game.surfaces) do
-    for _, entity in pairs(surface.find_entities_filtered(filters)) do
-      AddEntity(entity)
-    end
-  end
-end
-
 function AddEntity(entity)
   if entity.name == TX_COMBINATOR_NAME then
     global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
@@ -42,9 +23,14 @@ function AddEntity(entity)
     control.parameters = { parameters = {
       {index = 1, count = global.worldID or -1, signal = {type = "virtual", name = "signal-localid"}}
     }}
-
     entity.operable=false
   end
+end
+
+function OnBuiltEntity(event)
+  local entity = event.created_entity
+  if entity.name == "entity-ghost" then return end
+  AddEntity(entity)
 end
 
 function OnKilledEntity(event)
@@ -95,12 +81,11 @@ function Reset()
   global.txSignals = {}
   global.oldTXSignals = nil
 
-  AddAllEntitiesOfNames(
-  {
-    RX_COMBINATOR_NAME,
-    TX_COMBINATOR_NAME,
-    ID_COMBINATOR_NAME,
-  })
+  for _, surface in pairs(game.surfaces) do
+    for _, entity in pairs(surface.find_entities_filtered{name={ RX_COMBINATOR_NAME, TX_COMBINATOR_NAME, ID_COMBINATOR_NAME }}) do
+      AddEntity(entity)
+    end
+  end
 end
 
 script.on_init(Reset)
@@ -122,16 +107,6 @@ end)
 ---------------------------------
 --[[Update combinator methods]]--
 ---------------------------------
-function AddFrameToRXBuffer(frame)
-  --game.print("RXb"..game.tick..":"..serpent.block(frame))
-
-  -- if buffer is full, drop frame
-  if #global.rxBuffer >= settings.global["routablecombinators-rx-buffer-size"].value then return 0 end
-
-  table.insert(global.rxBuffer,frame)
-
-  return settings.global["routablecombinators-rx-buffer-size"].value - #global.rxBuffer
-end
 
 function HandleTXCombinators()
   -- Check all TX Combinators, and if condition satisfied, add frame to transmit buffer
@@ -178,32 +153,23 @@ function HandleTXCombinators()
   if hassignals then
 
     --Don't send the exact same signals in a row
-    -- have to clear tick from old frame and compare before adding to new or it'll always differ
-    local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
     if global.oldTXSignals and table.compare(global.oldTXSignals, txsignals) then
-      global.oldTXSignals = txsignals
       return
     else
       global.oldTXSignals = txsignals
 
-
-
+      local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
       txsignals.data[sigtick] = game.tick
 
-      --game.print("TX"..game.tick..":"..serpent.block(txsignals))
       local outstr = WriteFrame(txsignals)
       local size = WriteVarInt(#outstr)
       outstr = size .. outstr
-
 
       -- If the buffer is full, discard the oldest frame to prevent this table growing too large
       if #global.txSignals >= settings.global["routablecombinators-tx-buffer-size"].value then
         table.remove(global.txSignals,1)
       end
       global.txSignals[#global.txSignals + 1] = outstr
-
-      -- Loopback for testing
-      --AddFrameToRXBuffer(outstr)
     end
   end
 end
@@ -253,14 +219,23 @@ commands.add_command("RoutingSetID","",function(cmd)
     global.worldID = global.worldID - 0x100000000
   end
 
-  AddAllEntitiesOfNames{ID_COMBINATOR_NAME}
-
+  for _, surface in pairs(game.surfaces) do
+    for _, entity in pairs(surface.find_entities_filtered{name=ID_COMBINATOR_NAME}) do
+      AddEntity(entity)
+    end
+  end
 end)
 
 commands.add_command("RoutingRX","",function(cmd)
   -- frame in cmd.parameter
-  --log("RX: ".. serpent.line(cmd.parameter))
-  AddFrameToRXBuffer(cmd.parameter)
+  local frame = cmd.parameter
+  
+  -- if buffer is full, drop frame
+  if #global.rxBuffer >= settings.global["routablecombinators-rx-buffer-size"].value then return 0 end
+
+  table.insert(global.rxBuffer,frame)
+
+  return settings.global["routablecombinators-rx-buffer-size"].value - #global.rxBuffer
 end)
 
 commands.add_command("RoutingTXBuff","",function(cmd)
