@@ -1,7 +1,7 @@
 require("util")
 require("config")
 
--- Do some magic nice stuffs
+-- groups
 data:extend(
 {
 	{
@@ -156,8 +156,7 @@ data:extend{
 	},
 }
 
-
-
+-- technology
 data:extend{
   {
   	type = "technology",
@@ -190,3 +189,29 @@ data:extend{
     order = "a-d-e",
   },
 }
+
+-- padding signals for IP
+--TODO: settings: bool to enable, ints for range
+local paddingsignals = {
+	{
+		type = "item-subgroup",
+		name = "virtual-signal-ip",
+		group = "signals",
+		order = "zz"
+	  }
+  
+  }
+  
+  for i = 254,319 do
+	table.insert(paddingsignals, {
+	  type = "virtual-signal",
+	  name = "signal-" .. i,
+	  icon = "__base__/graphics/icons/signal/signal_1.png",
+	  icon_size = 32,
+	  subgroup = "virtual-signal-ip",
+	  localised_name = {"virtual-signal-name.signal-padding-n",i},
+	  order = "zz[ip]-[" .. i .. "]"
+	})
+  end
+  
+  data:extend(paddingsignals)

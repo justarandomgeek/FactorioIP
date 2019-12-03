@@ -1,217 +1,201 @@
+No_Profiler_Commands = true
+local ProfilerLoaded,Profiler = pcall(require,'__profiler__/profiler.lua')
+if not ProfilerLoaded then Profiler=nil end
+
+pcall(require,'__coverage__/coverage.lua')
+
 require("util")
 require("config")
 
 local deflate = require "zlib-deflate"
-local base64 = require "base64"
 require("datastring")
 ------------------------------------------------------------
 --[[Method that handle creation and deletion of entities]]--
 ------------------------------------------------------------
 function OnBuiltEntity(event)
-	local entity = event.created_entity
-	if not (entity and entity.valid) then return end
-	if entity.name == "entity-ghost" then return end
-	AddEntity(entity)
+  local entity = event.created_entity
+  if not (entity and entity.valid) then return end
+  if entity.name == "entity-ghost" then return end
+  AddEntity(entity)
 end
 
 function AddAllEntitiesOfNames(names)
-	local filters = {}
-	for i = 1, #names do
-		local name = names[i]
-		filters[#filters + 1] = {name = name}
-	end
-	for k, surface in pairs(game.surfaces) do
-		AddEntities(surface.find_entities_filtered(filters))
-	end
-end
-
-function AddEntities(entities)
-	for k, entity in pairs(entities) do
-		AddEntity(entity)
-	end
+  local filters = {}
+  for i = 1, #names do
+    local name = names[i]
+    filters[#filters + 1] = {name = name}
+  end
+  for _, surface in pairs(game.surfaces) do
+    for _, entity in pairs(surface.find_entities_filtered(filters)) do
+      AddEntity(entity)
+    end
+  end
 end
 
 function AddEntity(entity)
-	if entity.name == TX_COMBINATOR_NAME then
-		global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
-	elseif entity.name == RX_COMBINATOR_NAME then
-		global.rxControls[entity.unit_number] = entity.get_or_create_control_behavior()
-		entity.operable=false
+  if entity.name == TX_COMBINATOR_NAME then
+    global.txControls[entity.unit_number] = entity.get_or_create_control_behavior()
+  elseif entity.name == RX_COMBINATOR_NAME then
+    global.rxControls[entity.unit_number] = entity.get_or_create_control_behavior()
+    entity.operable=false
   elseif entity.name == ID_COMBINATOR_NAME then
-		local control = entity.get_or_create_control_behavior()
+    local control = entity.get_or_create_control_behavior()
     control.parameters = { parameters = {
       {index = 1, count = global.worldID or -1, signal = {type = "virtual", name = "signal-localid"}}
     }}
 
-		entity.operable=false
-	end
+    entity.operable=false
+  end
 end
 
 function OnKilledEntity(event)
-	local entity = event.entity
-	if entity.type ~= "entity-ghost" then
-		--remove the entities from the tables as they are dead
-		if entity.name == TX_COMBINATOR_NAME then
-			global.txControls[entity.unit_number] = nil
-		elseif entity.name == RX_COMBINATOR_NAME then
-			global.rxControls[entity.unit_number] = nil
-		end
-	end
+  local entity = event.entity
+  if entity.type ~= "entity-ghost" then
+    --remove the entities from the tables as they are dead
+    if entity.name == TX_COMBINATOR_NAME then
+      global.txControls[entity.unit_number] = nil
+    elseif entity.name == RX_COMBINATOR_NAME then
+      global.rxControls[entity.unit_number] = nil
+    end
+  end
 end
 
 
 -----------------------------
 --[[Thing creation events]]--
 -----------------------------
-script.on_event(defines.events.on_built_entity, function(event)
-	OnBuiltEntity(event)
-end)
-
-script.on_event(defines.events.on_robot_built_entity, function(event)
-	OnBuiltEntity(event)
-end)
-
+script.on_event(defines.events.on_built_entity, OnBuiltEntity)
+script.on_event(defines.events.on_robot_built_entity, OnBuiltEntity)
 
 ----------------------------
 --[[Thing killing events]]--
 ----------------------------
-script.on_event(defines.events.on_entity_died, function(event)
-	OnKilledEntity(event)
-end)
-
-script.on_event(defines.events.on_robot_pre_mined, function(event)
-	OnKilledEntity(event)
-end)
-
-script.on_event(defines.events.on_pre_player_mined_item, function(event)
-	OnKilledEntity(event)
-end)
-
+script.on_event(defines.events.on_entity_died, OnKilledEntity)
+script.on_event(defines.events.on_robot_pre_mined, OnKilledEntity)
+script.on_event(defines.events.on_pre_player_mined_item, OnKilledEntity)
 
 ------------------------------
 --[[Thing resetting events]]--
 ------------------------------
-script.on_init(function()
-	Reset()
-end)
+script.on_init(Reset)
 
 script.on_configuration_changed(function(data)
-	if data.mod_changes and data.mod_changes["routablecombinators"] then
-		Reset()
-	end
+  if data.mod_changes and data.mod_changes["routablecombinators"] then
+    Reset()
+  end
 end)
 
 function Reset()
-	-- Maps for signalid <> Signal
-	global.id_to_signal_map={}
-	global.signal_to_id_map={virtual={},fluid={},item={}}
-	for _,v in pairs(game.virtual_signal_prototypes) do
-		global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=v.name, type="virtual"}
-		global.signal_to_id_map.virtual[v.name]=#global.id_to_signal_map
-	end
-	for _,f in pairs(game.fluid_prototypes) do
-		global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=f.name, type="fluid"}
-		global.signal_to_id_map.fluid[f.name]=#global.id_to_signal_map
-	end
-	for _,i in pairs(game.item_prototypes) do
-		global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=i.name, type="item"}
-		global.signal_to_id_map.item[i.name]=#global.id_to_signal_map
-	end
-	global.rxControls = {}
-	global.rxBuffer = {}
-	global.txControls = {}
-	global.txSignals = {}
+  -- Maps for signalid <> Signal
+  global.id_to_signal_map={}
+  global.signal_to_id_map={virtual={},fluid={},item={}}
+  for _,v in pairs(game.virtual_signal_prototypes) do
+    global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=v.name, type="virtual"}
+    global.signal_to_id_map.virtual[v.name]=#global.id_to_signal_map
+  end
+  for _,f in pairs(game.fluid_prototypes) do
+    global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=f.name, type="fluid"}
+    global.signal_to_id_map.fluid[f.name]=#global.id_to_signal_map
+  end
+  for _,i in pairs(game.item_prototypes) do
+    global.id_to_signal_map[#global.id_to_signal_map+1]={id=#global.id_to_signal_map+1, name=i.name, type="item"}
+    global.signal_to_id_map.item[i.name]=#global.id_to_signal_map
+  end
+  global.rxControls = {}
+  global.rxBuffer = {}
+  global.txControls = {}
+  global.txSignals = {}
   global.oldTXSignals = nil
 
-	AddAllEntitiesOfNames(
-	{
-		RX_COMBINATOR_NAME,
-		TX_COMBINATOR_NAME,
+  AddAllEntitiesOfNames(
+  {
+    RX_COMBINATOR_NAME,
+    TX_COMBINATOR_NAME,
     ID_COMBINATOR_NAME,
-	})
+  })
 end
 
 script.on_event(defines.events.on_tick, function(event)
-	-- TX Combinators must run every tick to catch single pulses
-	HandleTXCombinators()
+  -- TX Combinators must run every tick to catch single pulses
+  HandleTXCombinators()
 
-	-- RX Combinators are set and then cleared on sequential ticks to create pulses
-	UpdateRXCombinators()
+  -- RX Combinators are set and then cleared on sequential ticks to create pulses
+  UpdateRXCombinators()
 end)
 
 ---------------------------------
 --[[Update combinator methods]]--
 ---------------------------------
 function AddFrameToRXBuffer(frame)
-	--game.print("RXb"..game.tick..":"..serpent.block(frame))
+  --game.print("RXb"..game.tick..":"..serpent.block(frame))
 
-	-- if buffer is full, drop frame
-	if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
+  -- if buffer is full, drop frame
+  if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
 
-	table.insert(global.rxBuffer,frame)
+  table.insert(global.rxBuffer,frame)
 
-	return MAX_RX_BUFFER_SIZE - #global.rxBuffer
+  return MAX_RX_BUFFER_SIZE - #global.rxBuffer
 end
 
 function HandleTXCombinators()
-	-- Check all TX Combinators, and if condition satisfied, add frame to transmit buffer
+  -- Check all TX Combinators, and if condition satisfied, add frame to transmit buffer
 
-	--[[
-	txsignals = {
-		dstid = int or nil
-		srcid = int or nil
-		data = {
-			[signalid]=value,
-			[signalid]=value,
-			...
-		}
-	}
-	--]]
-	local hassignals = false
-	local txsignals = {
-		srcid=global.worldID,
-		data={}
-	}
-	for i,txControl in pairs(global.txControls) do
-		if txControl.valid then
-			-- frame = {{count=42,signal={name="signal-grey",type="virtual"}},{...},...}
-			local frame = txControl.signals_last_tick
-			if frame then
-				for _,signal in pairs(frame) do
-					local signalName = signal.signal.name
-					if signalName == "signal-srcid"  or  signalName == "signal-srctick" then
-						-- skip these two, to enforce correct values.
-					elseif signalName == "signal-dstid" then
-						-- dstid has a special field to go in (this is mostly to make unicast easier on the js side)
-						--game.print("TX"..game.tick..":".."dstid"..signal.count)
-						txsignals.dstid = (txsignals.dstid or 0) + signal.count
-					else
-						local sigid = global.signal_to_id_map[signal.signal.type][signalName]
-						txsignals.data[sigid] = (txsignals.data[sigid] or 0) + signal.count
-						hassignals = true
-					end
-				end
-			end
-		end
-	end
+  --[[
+  txsignals = {
+    dstid = int or nil
+    srcid = int or nil
+    data = {
+      [signalid]=value,
+      [signalid]=value,
+      ...
+    }
+  }
+  --]]
+  local hassignals = false
+  local txsignals = {
+    srcid=global.worldID,
+    data={}
+  }
+  for i,txControl in pairs(global.txControls) do
+    if txControl.valid then
+      -- frame = {{count=42,signal={name="signal-grey",type="virtual"}},{...},...}
+      local frame = txControl.signals_last_tick
+      if frame then
+        for _,signal in pairs(frame) do
+          local signalName = signal.signal.name
+          if signalName == "signal-srcid"  or  signalName == "signal-srctick" then
+            -- skip these two, to enforce correct values.
+          elseif signalName == "signal-dstid" then
+            -- dstid has a special field to go in (this is mostly to make unicast easier on the js side)
+            --game.print("TX"..game.tick..":".."dstid"..signal.count)
+            txsignals.dstid = (txsignals.dstid or 0) + signal.count
+          else
+            local sigid = global.signal_to_id_map[signal.signal.type][signalName]
+            txsignals.data[sigid] = (txsignals.data[sigid] or 0) + signal.count
+            hassignals = true
+          end
+        end
+      end
+    end
+  end
 
-	if hassignals then
+  if hassignals then
 
-		--Don't send the exact same signals in a row
-		-- have to clear tick from old frame and compare before adding to new or it'll always differ
-		local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
-		if global.oldTXSignals and AreTablesSame(global.oldTXSignals, txsignals) then
-			global.oldTXSignals = txsignals
-			return
-		else
-			global.oldTXSignals = txsignals
+    --Don't send the exact same signals in a row
+    -- have to clear tick from old frame and compare before adding to new or it'll always differ
+    local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
+    if global.oldTXSignals and AreTablesSame(global.oldTXSignals, txsignals) then
+      global.oldTXSignals = txsignals
+      return
+    else
+      global.oldTXSignals = txsignals
 
 
 
-			txsignals.data[sigtick] = game.tick
+      txsignals.data[sigtick] = game.tick
 
-			--game.print("TX"..game.tick..":"..serpent.block(txsignals))
-			local outstr = WriteFrame(txsignals)
+      --game.print("TX"..game.tick..":"..serpent.block(txsignals))
+      local outstr = WriteFrame(txsignals)
       local size = WriteVarInt(#outstr)
       outstr = size .. outstr
 
@@ -220,72 +204,60 @@ function HandleTXCombinators()
       if #global.txSignals >= MAX_TX_BUFFER_SIZE then
         table.remove(global.txSignals,1)
       end
-			global.txSignals[#global.txSignals + 1] = outstr
+      global.txSignals[#global.txSignals + 1] = outstr
 
-			-- Loopback for testing
-			--AddFrameToRXBuffer(outstr)
-		end
-	end
+      -- Loopback for testing
+      --AddFrameToRXBuffer(outstr)
+    end
+  end
 end
 
 function AreTablesSame(tableA, tableB)
-	if tableA == nil and tableB ~= nil then
-		return false
-	elseif tableA ~= nil and tableB == nil then
-		return false
-	elseif tableA == nil and tableB == nil then
-		return true
-	end
+  if tableA == nil and tableB ~= nil then
+    return false
+  elseif tableA ~= nil and tableB == nil then
+    return false
+  elseif tableA == nil and tableB == nil then
+    return true
+  end
 
-	if TableWithKeysLength(tableA) ~= TableWithKeysLength(tableB) then
-		return false
-	end
+  for keyA, valueA in pairs(tableA) do
+    local valueB = tableB[keyA]
+    if type(valueA) == "table" and type(valueB) == "table" then
+      if not AreTablesSame(valueA, valueB) then
+        return false
+      end
+    elseif type(valueA) ~= type(valueB) then
+      return false
+    elseif valueA ~= valueB then
+      return false
+    end
+  end
 
-	for keyA, valueA in pairs(tableA) do
-		local valueB = tableB[keyA]
-		if type(valueA) == "table" and type(valueB) == "table" then
-			if not AreTablesSame(valueA, valueB) then
-				return false
-			end
-		elseif type(valueA) ~= type(valueB) then
-			return false
-		elseif valueA ~= valueB then
-			return false
-		end
-	end
-
-	return true
-end
-
-function TableWithKeysLength(tableA)
-	local count = 0
-	for k, v in pairs(tableA) do
-		count = count + 1
-	end
-	return count
+  return true
 end
 
 function UpdateRXCombinators()
-	-- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
-	if #global.rxBuffer > 0 then
-		local frame = ReadFrame(table.remove(global.rxBuffer))
-		--log("RX:"..serpent.block(frame))
+  -- if the RX buffer is not empty, get a frame from it and output on all RX Combinators
+  if #global.rxBuffer > 0 then
+    local frame = ReadFrame(table.remove(global.rxBuffer))
+    --log("RX:"..serpent.block(frame))
 
-		for i,rxControl in pairs(global.rxControls) do
-			if rxControl.valid then
-				rxControl.parameters = {parameters = frame }
-				rxControl.enabled = true
-			end
-		end
+    for i,rxControl in pairs(global.rxControls) do
+      if rxControl.valid then
+        rxControl.parameters = {parameters = frame }
+        rxControl.enabled = true
+      end
+    end
   else
     -- no frames to send right now, blank all...
     for i,rxControl in pairs(global.rxControls) do
-  		if rxControl.valid then
-			rxControl.parameters = {parameters = {}}
-  			rxControl.enabled = false
-  		end
-  	end
-	end
+      if rxControl.valid then
+      rxControl.parameters = {parameters = {}}
+        rxControl.enabled = false
+      end
+    end
+  end
 end
 
 ---------------------
@@ -326,18 +298,16 @@ commands.add_command("RoutingTXBuff","",function(cmd)
   else
     if next(global.txSignals) then
       -- concat them all and print all in one go, one loooong series of non-zero bytes...
-	  rcon.print(table.concat(global.txSignals))
-	  global.txSignals = {}
+    rcon.print(table.concat(global.txSignals))
+    global.txSignals = {}
     end
   end
 end)
 
-local sigmapdata = nil
-
 commands.add_command("RoutingGetMap","",function(cmd)
   -- return maps for use by external tools
   -- id_to_signal is sparse int indexes (js will use stringy numbers), signal_to_id is map["type"]["name"] -> id
-  data = base64.enc(deflate.gzip(game.table_to_json(global.id_to_signal_map)))
+  data = util.encode((deflate.gzip(game.table_to_json(global.id_to_signal_map))))
   
   if cmd.player_index and cmd.player_index > 0 then
     game.players[cmd.player_index].print("sigmapdata ".. data:len() .. " char")
