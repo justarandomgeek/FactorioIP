@@ -9,6 +9,14 @@ data:extend{
   },
   {
     type = "int-setting",
+    name = "routablecombinators-rx-frame-size",
+    setting_type = "startup",
+    default_value = 500,
+    minimum_value = 260,
+    order="routablecombinators-11-rx-frame-size",
+  },
+  {
+    type = "int-setting",
     name = "routablecombinators-tx-buffer-size",
     setting_type = "global-runtime",
     default_value = 60,

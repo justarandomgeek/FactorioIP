@@ -14,7 +14,6 @@ require("datastring")
 ------------------------------------------------------------
 function OnBuiltEntity(event)
   local entity = event.created_entity
-  if not (entity and entity.valid) then return end
   if entity.name == "entity-ghost" then return end
   AddEntity(entity)
 end
@@ -50,16 +49,13 @@ end
 
 function OnKilledEntity(event)
   local entity = event.entity
-  if entity.type ~= "entity-ghost" then
-    --remove the entities from the tables as they are dead
-    if entity.name == TX_COMBINATOR_NAME then
-      global.txControls[entity.unit_number] = nil
-    elseif entity.name == RX_COMBINATOR_NAME then
-      global.rxControls[entity.unit_number] = nil
-    end
+  --remove the entities from the tables as they are dead
+  if entity.name == TX_COMBINATOR_NAME then
+    global.txControls[entity.unit_number] = nil
+  elseif entity.name == RX_COMBINATOR_NAME then
+    global.rxControls[entity.unit_number] = nil
   end
 end
-
 
 -----------------------------
 --[[Thing creation events]]--
@@ -184,7 +180,7 @@ function HandleTXCombinators()
     --Don't send the exact same signals in a row
     -- have to clear tick from old frame and compare before adding to new or it'll always differ
     local sigtick = global.signal_to_id_map["virtual"]["signal-srctick"]
-    if global.oldTXSignals and AreTablesSame(global.oldTXSignals, txsignals) then
+    if global.oldTXSignals and table.compare(global.oldTXSignals, txsignals) then
       global.oldTXSignals = txsignals
       return
     else
@@ -210,31 +206,6 @@ function HandleTXCombinators()
       --AddFrameToRXBuffer(outstr)
     end
   end
-end
-
-function AreTablesSame(tableA, tableB)
-  if tableA == nil and tableB ~= nil then
-    return false
-  elseif tableA ~= nil and tableB == nil then
-    return false
-  elseif tableA == nil and tableB == nil then
-    return true
-  end
-
-  for keyA, valueA in pairs(tableA) do
-    local valueB = tableB[keyA]
-    if type(valueA) == "table" and type(valueB) == "table" then
-      if not AreTablesSame(valueA, valueB) then
-        return false
-      end
-    elseif type(valueA) ~= type(valueB) then
-      return false
-    elseif valueA ~= valueB then
-      return false
-    end
-  end
-
-  return true
 end
 
 function UpdateRXCombinators()
