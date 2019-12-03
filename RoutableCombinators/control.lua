@@ -77,14 +77,6 @@ script.on_event(defines.events.on_pre_player_mined_item, OnKilledEntity)
 ------------------------------
 --[[Thing resetting events]]--
 ------------------------------
-script.on_init(Reset)
-
-script.on_configuration_changed(function(data)
-  if data.mod_changes and data.mod_changes["routablecombinators"] then
-    Reset()
-  end
-end)
-
 function Reset()
   -- Maps for signalid <> Signal
   global.id_to_signal_map={}
@@ -114,6 +106,14 @@ function Reset()
     ID_COMBINATOR_NAME,
   })
 end
+
+script.on_init(Reset)
+
+script.on_configuration_changed(function(data)
+  if data.mod_changes and data.mod_changes["routablecombinators"] then
+    Reset()
+  end
+end)
 
 script.on_event(defines.events.on_tick, function(event)
   -- TX Combinators must run every tick to catch single pulses
