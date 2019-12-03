@@ -130,11 +130,11 @@ function AddFrameToRXBuffer(frame)
   --game.print("RXb"..game.tick..":"..serpent.block(frame))
 
   -- if buffer is full, drop frame
-  if #global.rxBuffer >= MAX_RX_BUFFER_SIZE then return 0 end
+  if #global.rxBuffer >= settings.global["routablecombinators-rx-buffer-size"].value then return 0 end
 
   table.insert(global.rxBuffer,frame)
 
-  return MAX_RX_BUFFER_SIZE - #global.rxBuffer
+  return settings.global["routablecombinators-rx-buffer-size"].value - #global.rxBuffer
 end
 
 function HandleTXCombinators()
@@ -201,7 +201,7 @@ function HandleTXCombinators()
 
 
       -- If the buffer is full, discard the oldest frame to prevent this table growing too large
-      if #global.txSignals >= MAX_TX_BUFFER_SIZE then
+      if #global.txSignals >= settings.global["routablecombinators-tx-buffer-size"].value then
         table.remove(global.txSignals,1)
       end
       global.txSignals[#global.txSignals + 1] = outstr

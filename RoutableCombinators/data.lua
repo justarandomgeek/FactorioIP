@@ -209,6 +209,6 @@ if settings.startup["routablecombinators-enable-padding"].value then
     end
   else
     log(("start %d >= stop $d"):format(start,stop))
-  end  
+  end
   data:extend(paddingsignals)
 end
