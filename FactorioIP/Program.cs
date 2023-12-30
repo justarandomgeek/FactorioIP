@@ -1,15 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Net;
-using System.Net.Sockets;
-using System.Web.Script.Serialization;
-using System.Net.Http;
 using System.IO;
-using System.Collections.Specialized;
-using System.Net.WebSockets;
 using System.Threading;
 
 using CoreRCON;
@@ -83,11 +75,9 @@ namespace FactorioIP
                     // MAP:filename.json
                     var path = item.Substring(4);
 
-                    var json = new JavaScriptSerializer();
-
                     var mapjson = new FileInfo(path).OpenText().ReadToEnd();
 
-                    var map = json.Deserialize<IEnumerable<Dictionary<string, string>>>(mapjson);
+                    var map = System.Text.Json.JsonSerializer.Deserialize<IEnumerable<Dictionary<string, string>>>(mapjson);
 
                     var siglist = map.Select(d => new SignalMap.SignalID { type = (string)d["type"], name = (string)d["name"] });
 
@@ -101,8 +91,6 @@ namespace FactorioIP
                 }
             }
 
-            //router.Register(new GREFrameSocket("10.42.2.1"));
-            //router.Register(new RConSocket("localhost", 12345, "password"));
 
             while (true)
             {

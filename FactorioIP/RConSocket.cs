@@ -2,11 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Script.Serialization;
 
 namespace FactorioIP
 {
@@ -57,7 +54,6 @@ namespace FactorioIP
 
                     ID = Int32.Parse(await rcon.SendCommandAsync("/RoutingGetID"));
 
-                    var json = new JavaScriptSerializer();
                     string mapstr = await rcon.SendCommandAsync($"/RoutingGetMap");
                     mapstr = mapstr.TrimEnd('\0', '\n');
                     var split = mapstr.IndexOf(':');
@@ -74,7 +70,7 @@ namespace FactorioIP
                     using (var sr = new System.IO.StreamReader(gz))
                     {
                         var mapjson = sr.ReadToEnd();
-                        var map = json.Deserialize<IEnumerable<Dictionary<string, string>>>(mapjson);
+                        var map = System.Text.Json.JsonSerializer.Deserialize<IEnumerable<Dictionary<string, string>>>(mapjson);
                         var siglist = map.Select(d => new SignalMap.SignalID { type = (string)d["type"], name = (string)d["name"] });
                         this.Map = new SignalMap(siglist);
                     }

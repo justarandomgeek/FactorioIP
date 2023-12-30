@@ -81,7 +81,9 @@ namespace FactorioIP
         bool isServer;
         TcpClient tcp;
         NetworkStream stream;
+#pragma warning disable SYSLIB0011 // Type or member is obsolete
         BinaryFormatter formatter = new BinaryFormatter();
+#pragma warning restore SYSLIB0011 // Type or member is obsolete
         TCPState state;
         
         public string Name => $"TCP:{tcp.Client.RemoteEndPoint}";
