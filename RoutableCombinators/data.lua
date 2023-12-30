@@ -70,7 +70,7 @@ local function makeItemAndRecipe(ent,ingredients)
       type = "item",
       name = ent.name,
       icon = ent.icon,
-      icon_size = 32,
+      icon_size = ent.icon_size,
       subgroup = "signal-subgroup",
       place_result=ent.name,
       order = "a[items]-b["..ent.name.."]",

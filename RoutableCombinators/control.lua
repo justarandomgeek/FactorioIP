@@ -1,9 +1,3 @@
-No_Profiler_Commands = true
-local ProfilerLoaded,Profiler = pcall(require,'__profiler__/profiler.lua')
-if not ProfilerLoaded then Profiler=nil end
-
-pcall(require,'__coverage__/coverage.lua')
-
 require("util")
 require("config")
 
@@ -87,6 +81,7 @@ function Reset()
     end
   end
 end
+if __DebugAdapter then __DebugAdapter.stepIgnore(Reset) end
 
 script.on_init(Reset)
 
@@ -253,7 +248,7 @@ end)
 commands.add_command("RoutingGetMap","",function(cmd)
   -- return maps for use by external tools
   -- id_to_signal is sparse int indexes (js will use stringy numbers), signal_to_id is map["type"]["name"] -> id
-  data = util.encode((deflate.gzip(game.table_to_json(global.id_to_signal_map))))
+  data = util.encode(deflate.gzip(game.table_to_json(global.id_to_signal_map)))
   
   if cmd.player_index and cmd.player_index > 0 then
     game.players[cmd.player_index].print("sigmapdata ".. data:len() .. " char")

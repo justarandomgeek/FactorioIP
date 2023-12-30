@@ -2,10 +2,10 @@
 {
 "name": "RoutableCombinators",
 "title": "Routable Combinators",
-"version": "0.17.0",
+"version": "0.18.0",
 "date": "2018-10-19",
 "author": "justarandomgeek",
-"dependencies": ["base >= 0.17"],
-"factorio_version": "0.17",
+"dependencies": ["base"],
+"factorio_version": "1.1",
 "description": "Allows combinator signals to be routed between worlds, and to/from real computer networks."
 }
