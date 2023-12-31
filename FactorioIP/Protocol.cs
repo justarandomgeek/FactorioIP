@@ -67,7 +67,7 @@ namespace FactorioIP
 
     struct IPv4Header
     {
-        byte ver_ihl;
+        readonly byte ver_ihl;
         public byte typeOfService;
         public UInt16 totalLen;
         public UInt16 ident;
@@ -80,8 +80,8 @@ namespace FactorioIP
         // This would be followed by options, if i supported any...
 
         // break out bitfields as required...
-        public byte version => (byte)(ver_ihl >> 4);
-        public byte headLen => (byte)(ver_ihl & 0xf);
+        public readonly byte version => (byte)(ver_ihl >> 4);
+        public readonly byte headLen => (byte)(ver_ihl & 0xf);
 
         [Flags]
         public enum IPFlags
@@ -90,12 +90,12 @@ namespace FactorioIP
             DontFragment = 2,
             MoreFragments = 1,
         }
-        public IPFlags flags => (IPFlags)((flags_fragment>>13)&7);
-        public UInt16 fragmentOffset => (UInt16)(flags_fragment & 0x1fff);
+        public readonly IPFlags flags => (IPFlags)((flags_fragment>>13)&7);
+        public readonly UInt16 fragmentOffset => (UInt16)(flags_fragment & 0x1fff);
 
 #pragma warning disable CS0618 // Type or member is obsolete
-        public IPAddress source { get => new IPAddress(sourceraw); set { this.sourceraw = (UInt32)value.Address; } }
-        public IPAddress dest { get => new IPAddress(destraw); set { this.destraw = (UInt32)value.Address; } }
+        public IPAddress source { readonly get => new IPAddress(sourceraw); set { this.sourceraw = (UInt32)value.Address; } }
+        public IPAddress dest { readonly get => new IPAddress(destraw); set { this.destraw = (UInt32)value.Address; } }
 #pragma warning restore CS0618 // Type or member is obsolete
 
         public static IPv4Header FromBytes(byte[] arr, int startIndex = 0)
@@ -126,14 +126,14 @@ namespace FactorioIP
         // This would be followed by options, if i supported any...
 
         // break out bitfields as required...
-        public byte version => (byte)((ver_class_label >> 28) & 0xf);
-        public byte trafficClass => (byte)(ver_class_label >> 20);
-        public UInt32 label => (UInt32)(ver_class_label & 0x000fffff);
+        public readonly byte version => (byte)((ver_class_label >> 28) & 0xf);
+        public readonly byte trafficClass => (byte)(ver_class_label >> 20);
+        public readonly UInt32 label => (UInt32)(ver_class_label & 0x000fffff);
 
-        public IPAddress source => BytesUtil.IPFrom64Pair(source1, source2);
-        public IPAddress dest => BytesUtil.IPFrom64Pair(dest1, dest2);
+        public readonly IPAddress source => BytesUtil.IPFrom64Pair(source1, source2);
+        public readonly IPAddress dest => BytesUtil.IPFrom64Pair(dest1, dest2);
 
-        public UInt16 totalLen => (UInt16)(payloadLen + 40u);
+        public readonly UInt16 totalLen => (UInt16)(payloadLen + 40u);
 
         public static IPv6Header FromBytes(byte[] arr, int startIndex = 0)
         {

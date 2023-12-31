@@ -10,10 +10,10 @@ namespace FactorioIP
     class RConSocket : EndpointFrameSocket
     {
 
-        Queue<PackedFrame> sendbuf = new Queue<PackedFrame>();
-        string host;
-        UInt16 port;
-        string password;
+        readonly Queue<PackedFrame> sendbuf = new Queue<PackedFrame>();
+        readonly string host;
+        readonly UInt16 port;
+        readonly string password;
         RCON rcon;
         bool rconAlive;
 
@@ -57,8 +57,8 @@ namespace FactorioIP
                     string mapstr = await rcon.SendCommandAsync($"/RoutingGetMap");
                     mapstr = mapstr.TrimEnd('\0', '\n');
                     var split = mapstr.IndexOf(':');
-                    var len = UInt32.Parse(mapstr.Substring(0,split));
-                    mapstr = mapstr.Substring(split+1);
+                    var len = UInt32.Parse(mapstr[..split]);
+                    mapstr = mapstr[(split + 1)..];
 
                     if (mapstr.Length != len)
                     {
@@ -129,7 +129,7 @@ namespace FactorioIP
                 
                 VarInt size;
 
-                while (packets.Count() > 2)
+                while (packets.Count > 2)
                 {
                     (size, packets) = VarInt.Take(packets);
 

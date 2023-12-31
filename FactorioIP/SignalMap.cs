@@ -13,16 +13,16 @@ namespace FactorioIP
             public string type;
             public string name;
 
-            public override string ToString() => $"{type.Substring(0,1)}:{name}";
+            public override readonly string ToString() => $"{type[..1]}:{name}";
 
             public static implicit operator SignalID((string t, string n) tuple) => new SignalID { type = tuple.t, name = tuple.n };
 
-            public override int GetHashCode() => (type, name).GetHashCode();
+            public override readonly int GetHashCode() => (type, name).GetHashCode();
             public override bool Equals(object other) => other is SignalID l && Equals(l);
-            public bool Equals(SignalID other) => type == other.type && name == other.name;
+            public readonly bool Equals(SignalID other) => type == other.type && name == other.name;
 
         }
-        List<SignalID> signals;
+        readonly List<SignalID> signals;
 
         public SignalID ByID(UInt32 id) => signals[(int)id-1];
         public UInt32 BySignal(string type, string name) => (UInt32)signals.IndexOf((type,name)) + 1;

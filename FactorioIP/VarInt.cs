@@ -12,8 +12,8 @@ namespace FactorioIP
     [Serializable]
     public struct VarInt
     {
-        UInt32 value;
-        public override string ToString() => value.ToString();
+        readonly UInt32 value;
+        public override readonly string ToString() => value.ToString();
 
         public VarInt(UInt32 u)
         {
@@ -29,7 +29,7 @@ namespace FactorioIP
         static public implicit operator Int32(VarInt v) => (Int32)v.value;
         static public implicit operator VarInt(Int32 i) => new VarInt((UInt32)i);
 
-        public IEnumerable<byte> Encode()
+        public readonly IEnumerable<byte> Encode()
         {
             byte prefix = 0;
             byte firstmask = 0;
@@ -140,12 +140,12 @@ namespace FactorioIP
         public static bool operator ==(VarInt left, Int32 right) => left.value == (UInt32)right;
         public static bool operator !=(VarInt left, Int32 right) => left.value != (UInt32)right;
 
-        public override bool Equals(object obj)
+        public override readonly bool Equals(object obj)
         {
             return obj is VarInt vi ? this == vi : obj is UInt32 u ? this == u : obj is Int32 i ? this == i : false;
         }
 
-        public override int GetHashCode()
+        public override readonly int GetHashCode()
         {
             return value.GetHashCode();
         }

@@ -8,8 +8,8 @@ namespace FactorioIP
 {
     class FrameRouter
     {
-        List<EndpointFrameSocket> sockets = new List<EndpointFrameSocket>();
-        List<RoutingFrameSocket> trunks = new List<RoutingFrameSocket>();
+        List<EndpointFrameSocket> sockets = [];
+        List<RoutingFrameSocket> trunks = [];
 
         // if set, minimum set to build composite map from
         public SignalMap FixedMap;

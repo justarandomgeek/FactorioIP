@@ -33,7 +33,7 @@ namespace FactorioIP
         public UnpackedFrame Unpack()
         {
             var i = 0u;
-            List<CircuitFrameValue> signals = new List<CircuitFrameValue>();
+            List<CircuitFrameValue> signals = [];
 
             while (i < payload.Length)
             {
@@ -71,7 +71,7 @@ namespace FactorioIP
         public string type;
         public VarInt count;
 
-        public override string ToString() => $"{type[0]}:{name} = {count}";
+        public override readonly string ToString() => $"{type[0]}:{name} = {count}";
     }
 
     
@@ -96,7 +96,7 @@ namespace FactorioIP
             VarInt lastid = UInt32.MaxValue;
             VarInt first_in_segment = UInt32.MaxValue;
             VarInt sigs_in_segment = 0u;
-            List<VarInt> segment_data = new List<VarInt>();
+            List<VarInt> segment_data = [];
             IEnumerable<VarInt> payload_data = Enumerable.Empty<VarInt>();
             foreach (var item in sigs)
             {
@@ -116,8 +116,7 @@ namespace FactorioIP
                     // reset counters...
                     first_in_segment = item.id;
                     sigs_in_segment = 1;
-                    segment_data = new List<VarInt>();
-                    segment_data.Add(item.signal.count);
+                    segment_data = [item.signal.count];
                 }
                 lastid = item.id;
             }

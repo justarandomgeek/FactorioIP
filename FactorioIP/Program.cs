@@ -20,12 +20,12 @@ namespace FactorioIP
                 if (item.StartsWith("GRE:"))
                 {
                     // GRE:hostname
-                    router.Register(new GREFrameSocket(item.Substring(4)));
+                    router.Register(new GREFrameSocket(item[4..]));
                 }
                 else if (item.StartsWith("RCON:"))
                 {
                     // RCON:host:port:password
-                    var parts = item.Substring(5).Split(':');
+                    var parts = item[5..].Split(':');
                     if (parts.Length == 3)
                     {
                         var rcon = new RConSocket(parts[0], UInt16.Parse(parts[1]), parts[2],router.Register,router.Unregister);
@@ -46,7 +46,7 @@ namespace FactorioIP
                 else if (item.StartsWith("TCP:"))
                 {
                     // TCP:host:port
-                    var parts = item.Substring(4).Split(':');
+                    var parts = item[4..].Split(':');
                     if (parts.Length == 2)
                     {
                         new TCPFrameSocket(parts[0], UInt16.Parse(parts[1]), router);
@@ -66,14 +66,14 @@ namespace FactorioIP
                 else if (item.StartsWith("TCPL:"))
                 {
                     // TCPL:port
-                    var port = UInt16.Parse(item.Substring(5));
+                    var port = UInt16.Parse(item[5..]);
 
                     new TCPFrameSocketListener(port, router);
                 }
                 else if (item.StartsWith("MAP:"))
                 {
                     // MAP:filename.json
-                    var path = item.Substring(4);
+                    var path = item[4..];
 
                     var mapjson = new FileInfo(path).OpenText().ReadToEnd();
 

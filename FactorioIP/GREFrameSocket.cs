@@ -14,7 +14,7 @@ namespace FactorioIP
     class GREFrameSocket: EndpointFrameSocket
     {
 
-        GRESocket gre;
+        readonly GRESocket gre;
 
         public Action<UnpackedFrame> OnReceive { get; set ; }
 
@@ -77,12 +77,14 @@ namespace FactorioIP
 
         PackedFrame packet_to_circuit(byte[] buffer, int startAt, int size)
         {
-            var frame = new List<VarInt>();
-            frame.Add(1); // firstsignal = 1 we start at the beginning of the map...
-            frame.Add(((size+3) / 4) + 2 ); // sigcount = enough signals to hold all the bytes plus two for feathernet header...
+            var frame = new List<VarInt>
+            {
+                1, // firstsignal = 1 we start at the beginning of the map...
+                ((size + 3) / 4) + 2, // sigcount = enough signals to hold all the bytes plus two for feathernet header...
 
-            frame.Add(0); // grey = broadcast / placeholder for feathernet dest
-            frame.Add(1); // white = 1 to mark feathernet map
+                0, // grey = broadcast / placeholder for feathernet dest
+                1 // white = 1 to mark feathernet map
+            };
 
             int i;
             for (i = startAt; i < startAt+size; i+=4)
@@ -127,7 +129,7 @@ namespace FactorioIP
         {
             // format and hand to gre...
             UInt16 type = 0;
-            var size = frame.signals.Count() * 4;
+            var size = frame.signals.Length * 4;
 
             var sigwhite = frame.signals.FirstOrDefault(cfv => cfv.name == "signal-white").count;
             var sig0 = frame.signals.FirstOrDefault(cfv => cfv.name == "signal-0").count;
@@ -194,7 +196,7 @@ namespace FactorioIP
             }
             else
             {
-                Console.WriteLine($"Unrecognized GRE packet type=0x{type:x4} size={size}, signals={frame.signals.Count()}");
+                Console.WriteLine($"Unrecognized GRE packet type=0x{type:x4} size={size}, signals={frame.signals.Length}");
             }
         }
 

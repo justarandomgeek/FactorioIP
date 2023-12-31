@@ -22,8 +22,8 @@ namespace FactorioIP
 
     class TCPFrameSocketListener
     {
-        FrameRouter router;
-        TcpListener listener;
+        readonly FrameRouter router;
+        readonly TcpListener listener;
 
         public TCPFrameSocketListener(UInt16 localport, FrameRouter router)
         {
@@ -76,13 +76,13 @@ namespace FactorioIP
             // implied Map = TCP socket's map. New signals are added at the end of the map during a session, so any buffered frames need not change.
         }
 
-        FrameRouter router;
+        readonly FrameRouter router;
 
-        bool isServer;
+        readonly bool isServer;
         TcpClient tcp;
         NetworkStream stream;
 #pragma warning disable SYSLIB0011 // Type or member is obsolete
-        BinaryFormatter formatter = new BinaryFormatter();
+        readonly BinaryFormatter formatter = new BinaryFormatter();
 #pragma warning restore SYSLIB0011 // Type or member is obsolete
         TCPState state;
         
@@ -207,7 +207,7 @@ namespace FactorioIP
 
         public SignalMap Map { get; private set; }
 
-        List<VarInt> remotePeers = new List<VarInt>();
+        List<VarInt> remotePeers = [];
         public IEnumerable<VarInt> RoutablePeers => remotePeers.AsReadOnly();
 
         private TCPState State

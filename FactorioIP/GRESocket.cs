@@ -17,23 +17,21 @@ namespace FactorioIP
 
     class GRESocket
     {
-        
-        Socket gresock;
-        Queue<TypeAndPacket> sendbuf = new Queue<TypeAndPacket>();
+
+        readonly Socket gresock;
+        readonly Queue<TypeAndPacket> sendbuf = new Queue<TypeAndPacket>();
 
         public Action<byte[]> OnReceive { get; set; }
 
         public GRESocket(string host, Action<byte[]> OnReceive)
         {
             // set up a socket for GRE=47, listen on any address...
-            gresock = new Socket(SocketType.Raw, (ProtocolType)47);
-            // IPv6 sockets don't include ip header, so turn it off for v4 too if anyone uses v4 outer...
-            gresock.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, false);
+            gresock = new Socket(AddressFamily.InterNetworkV6, SocketType.Raw, (ProtocolType)47);
             gresock.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
 
             // set default receive from
             gresock.Connect(host, 0);
-            
+
 
             this.OnReceive = OnReceive;
 
