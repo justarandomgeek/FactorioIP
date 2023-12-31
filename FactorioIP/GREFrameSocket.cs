@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,57 +34,44 @@ namespace FactorioIP
             
             this.OnReceive = OnReceive;
         }
-        
+
+        void ReceivedIPV6(byte[] rcvbuf, int startidx)
+        {
+            var v6inHeader = IPv6Header.FromBytes(rcvbuf, startidx);
+            Console.WriteLine($"Type: {v6inHeader.nextHeader} Payload: {v6inHeader.payloadLen} From: {v6inHeader.source} To: {v6inHeader.dest}");
+            if (v6inHeader.payloadLen + 40 <= ((Map.Count - 2) * 4))
+            {
+                if (v6inHeader.nextHeader == 44)
+                {
+                    Console.WriteLine("Fragmented packet dropped");
+                }
+                else
+                {
+                    var circpacket = packet_to_circuit(rcvbuf, startidx, v6inHeader.totalLen).Unpack();
+                    circpacket.origin = this;
+                    OnReceive?.Invoke(circpacket);
+                }
+            }
+            else
+            {
+                Console.WriteLine("Too large");
+            }
+        }
+
         void ReceivedBytes(byte[] rcvbuf)
         {
             // convert to signals and OnRecieve()
-            switch (rcvbuf[0] >> 4)
+            var GREHead = GREHeader.FromBytes(rcvbuf, 0);
+            if (GREHead.flags_ver != 0) return; // don't support any GRE flags, version is always 0
+
+            // convert inner to json for clusterio and submit... for now we only have v6 inner
+            switch (GREHead.protocol)
             {
-                case 4:
-                    var v4Header = IPv4Header.FromBytes(rcvbuf, 0);
-                    if (v4Header.protocol != 47) break; // only GRE... this should be handled by socket, but just to be sure...
-                    if (v4Header.headLen != 5) break; // don't currently handle any options
-                    var GRE4Header = GREHeader.FromBytes(rcvbuf, (v4Header.headLen * 4));
-                    if (GRE4Header.flags_ver != 0) break; // don't support any GRE flags, version is always 0
-
-                    // convert inner to json for clusterio and submit... for now we only have v6 inner
-                    switch (GRE4Header.protocol)
-                    {
-                        case 0x86dd:
-                            var v6inHeader = IPv6Header.FromBytes(rcvbuf, ((v4Header.headLen + 1) * 4));
-                            Console.WriteLine($"Type: {v6inHeader.nextHeader} Payload: {v6inHeader.payloadLen} From: {v6inHeader.source} To: {v6inHeader.dest}");
-                            if (v6inHeader.payloadLen + 40 <= ((Map.Count - 2)  * 4))
-                            {
-                                if (v6inHeader.nextHeader == 44)
-                                {
-                                    Console.WriteLine("Fragmented packet dropped");
-                                }
-                                else
-                                {
-                                    var circpacket = packet_to_circuit(rcvbuf, ((v4Header.headLen + 1) * 4), v6inHeader.totalLen).Unpack();
-                                    circpacket.origin = this;
-                                    OnReceive?.Invoke(circpacket);
-                                }
-                            }
-                            else
-                            {
-                                Console.WriteLine("Too large");
-                            }
-
-
-                            break;
-                        default:
-                            break;
-                    }
-
-                    break;
-                case 6:
-                    var v6Header = IPv6Header.FromBytes(rcvbuf, 0);
-                    var GRE6Header = GREHeader.FromBytes(rcvbuf, 40);
-
-                    break;
+                case 0x86dd:
+                    ReceivedIPV6(rcvbuf, 4);
+                    return;
                 default:
-                    break;
+                    return;
             }
         }
 

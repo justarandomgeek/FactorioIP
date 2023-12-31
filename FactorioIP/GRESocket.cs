@@ -27,7 +27,9 @@ namespace FactorioIP
         {
             // set up a socket for GRE=47, listen on any address...
             gresock = new Socket(SocketType.Raw, (ProtocolType)47);
-            gresock.Bind(new IPEndPoint(IPAddress.Any, 0));
+            // IPv6 sockets don't include ip header, so turn it off for v4 too if anyone uses v4 outer...
+            gresock.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, false);
+            gresock.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
 
             // set default receive from
             gresock.Connect(host, 0);
