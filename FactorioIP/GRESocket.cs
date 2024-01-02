@@ -19,7 +19,7 @@ namespace FactorioIP
     {
 
         readonly Socket gresock;
-        readonly Queue<TypeAndPacket> sendbuf = new Queue<TypeAndPacket>();
+        readonly Queue<TypeAndPacket> sendbuf = new();
 
         public Action<byte[]> OnReceive { get; set; }
 
@@ -74,7 +74,7 @@ namespace FactorioIP
                 {
                     var payload = sendbuf.Dequeue();
 
-                    GREHeader outhead = new GREHeader{ flags_ver = 0, protocol = payload.Type };
+                    GREHeader outhead = new() { flags_ver = 0, protocol = payload.Type };
 
                     //TODO: callback to print packet now? maybe another task?
                     switch (payload.Type)
@@ -96,8 +96,8 @@ namespace FactorioIP
                     }
 
                     var packet = new List<ArraySegment<byte>>{
-                        new ArraySegment<byte>(outhead.ToBytes()),
-                        new ArraySegment<byte>(payload.Data)
+                        new(outhead.ToBytes()),
+                        new(payload.Data)
                     };
 
                     await Task.Factory.FromAsync(

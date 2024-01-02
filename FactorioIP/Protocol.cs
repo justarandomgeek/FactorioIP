@@ -26,7 +26,7 @@ namespace FactorioIP
 
         public static T fromBytes<T>(byte[] arr, int startIndex = 0)
         {
-            T str = default(T);
+            T str = default;
 
             int size = Marshal.SizeOf(str);
             IntPtr ptr = Marshal.AllocHGlobal(size);
@@ -94,8 +94,8 @@ namespace FactorioIP
         public readonly UInt16 fragmentOffset => (UInt16)(flags_fragment & 0x1fff);
 
 #pragma warning disable CS0618 // Type or member is obsolete
-        public IPAddress source { readonly get => new IPAddress(sourceraw); set { this.sourceraw = (UInt32)value.Address; } }
-        public IPAddress dest { readonly get => new IPAddress(destraw); set { this.destraw = (UInt32)value.Address; } }
+        public IPAddress source { readonly get => new(sourceraw); set { this.sourceraw = (UInt32)value.Address; } }
+        public IPAddress dest { readonly get => new(destraw); set { this.destraw = (UInt32)value.Address; } }
 #pragma warning restore CS0618 // Type or member is obsolete
 
         public static IPv4Header FromBytes(byte[] arr, int startIndex = 0)

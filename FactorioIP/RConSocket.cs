@@ -10,7 +10,7 @@ namespace FactorioIP
     class RConSocket : EndpointFrameSocket
     {
 
-        readonly Queue<PackedFrame> sendbuf = new Queue<PackedFrame>();
+        readonly Queue<PackedFrame> sendbuf = new();
         readonly string host;
         readonly UInt16 port;
         readonly string password;
