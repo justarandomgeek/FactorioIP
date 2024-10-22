@@ -56,70 +56,6 @@ local fcpflags = {
   name = "signal-2"
 }
 
-local receive_by_type = {
-
-  --ipv6
-  ---@param node FBNode
-  [1] = function (node)
-    if not (storage.rconbuffer and storage.signal_to_id) then return end
-    local entity = node.entity
-    -- read to rcon buffer
-    local sigs = entity.get_signals(defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
-    ---@cast sigs -?
-
-    local map = storage.signal_to_id
-
-    local packet_values = {}
-    packet_values[400] = nil
-    local top = 0
-
-    for _, sig in pairs(sigs) do
-      local signal = sig.signal
-      local qmap = map[signal.quality or "normal"]
-      if not qmap then goto continue end
-
-      local tmap = qmap[signal.type or "item"]
-      if not tmap then goto continue end
-
-      local id = tmap[signal.name]
-      if not id then goto continue end
-
-      packet_values[id] = string.pack(">i4", sig.count)
-      if id > top then top = id end
-      ::continue::
-    end
-
-    if top > 0 then
-      for i = 1, top, 1 do
-        if not packet_values[i] then
-          packet_values[i] = "\0\0\0\0"
-        end
-      end
-    end
-
-    -- stick a 16 bit length (count of 32bit words) and 16 bit ethertype on the front
-    table.insert(packet_values, 1, string.pack(">I2I2", top, 0x86dd))
-
-    storage.rconbuffer[#storage.rconbuffer+1] = table.concat(packet_values)
-  end,
-
-  --fcp
-  ---@param node FBNode
-  [2] = function (node)
-    local entity = node.entity
-    local mtype = entity.get_signal(fcpmsgtype, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
-    if mtype == 1 then -- solicit
-      local subject = entity.get_signal(fcpsubject, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
-      if subject == node.address or subject == 0 then
-        -- got a solicit for me, so send an advertise back...
-        node.fcp_send_advertise = true
-        node.fail_count = nil
-        node.next_retransmit = nil
-      end
-    end
-  end,
-}
-
 ---@param signal SignalFilter
 ---@param value int32
 ---@return LogisticFilter
@@ -147,7 +83,9 @@ local function packet_to_filters(packet)
   -- pre-allocate...
   filters[400] = nil
 
-  for i = 1,#packet,4 do
+  local len = #packet
+  
+  for i = 1,len,4 do
     local n = string.unpack(">i4", packet, i)
     local sig = storage.id_to_signal[((i-1)/4)+1]
     local index = #filters+1
@@ -167,6 +105,88 @@ local function fcp_advertise(address)
     signal_value(fcpflags, 1),
   }
 end
+
+
+---@class FBProtocol
+---@field receive fun(node:FBNode):string
+---@field try_send fun(node:FBNode):LogisticFilter[]?
+
+local protocols = {
+
+  -- ipv6
+  [1] = {
+    receive = function (node)
+      if not (storage.rconbuffer and storage.signal_to_id) then return end
+      local entity = node.entity
+      -- read to rcon buffer
+      local sigs = entity.get_signals(defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+      ---@cast sigs -?
+  
+      local map = storage.signal_to_id
+  
+      local packet_values = {}
+      packet_values[400] = nil
+      local top = 0
+  
+      for _, sig in pairs(sigs) do
+        local signal = sig.signal
+        local qmap = map[signal.quality or "normal"]
+        if not qmap then goto continue end
+  
+        local tmap = qmap[signal.type or "item"]
+        if not tmap then goto continue end
+  
+        local id = tmap[signal.name]
+        if not id then goto continue end
+  
+        packet_values[id] = string.pack(">i4", sig.count)
+        if id > top then top = id end
+        ::continue::
+      end
+  
+      if top > 0 then
+        for i = 1, top, 1 do
+          if not packet_values[i] then
+            packet_values[i] = "\0\0\0\0"
+          end
+        end
+      end
+  
+      -- stick a 16 bit length (count of 32bit words) and 16 bit ethertype on the front
+      table.insert(packet_values, 1, string.pack(">I2I2", top, 0x86dd))
+  
+      storage.rconbuffer[#storage.rconbuffer+1] = table.concat(packet_values)
+    end,
+    try_send = function(node)
+      local packet = node.txbuffer[1]
+      if packet then
+        return packet_to_filters(packet)
+      end
+    end,
+  },
+
+  -- fcp
+  [2] = {
+    receive = function (node)
+      local entity = node.entity
+      local mtype = entity.get_signal(fcpmsgtype, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+      if mtype == 1 then -- solicit
+        local subject = entity.get_signal(fcpsubject, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+        if subject == node.address or subject == 0 then
+          -- got a solicit for me, so send an advertise back...
+          node.fcp_send_advertise = true
+          node.fail_count = nil
+          node.next_retransmit = nil
+        end
+      end
+    end,
+    try_send = function (node)
+      if node.fcp_send_advertise then
+        return fcp_advertise(node.address)
+      end
+    end,
+  }
+}
 
 ---@param node FBNode
 local function on_tick_node(node)
@@ -201,9 +221,12 @@ local function on_tick_node(node)
     if col == 1 then -- got someone else's tx!
       local addr = entity.get_signal(addrsig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
       if addr == node.address or addr == 0 then
-        local proto = entity.get_signal(protosig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
-        local f = receive_by_type[proto]
-        if f then f(node) end
+        local protoid = entity.get_signal(protosig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+        local proto = protocols[protoid]
+        if proto then
+          local f = proto.receive
+          if f then f(node) end
+        end
       end
     end
     if node.next_retransmit then
@@ -213,18 +236,14 @@ local function on_tick_node(node)
         node.next_retransmit = node.next_retransmit - 1
       end
     else
-      if node.fcp_send_advertise then
-        node.tx_last_tick = true
-        -- try tx advertise...
-        node.control.sections[1].filters = fcp_advertise(node.address)
-        node.control.enabled = true
-      else
-        local packet = node.txbuffer[1]
-        if packet then
+      for _, proto in pairs(protocols) do
+        local filters = proto.try_send(node)
+        if filters then
           node.tx_last_tick = true
-          -- try tx
-          node.control.sections[1].filters = packet_to_filters(packet)
+          -- try tx advertise...
+          node.control.sections[1].filters = filters
           node.control.enabled = true
+          break
         end
       end
     end
@@ -270,8 +289,8 @@ commands.add_command("FBtraff", "", function(param)
       ---@type uint16 size
       local size
       size,i = string.unpack(">I2", data, i)
-      local j = i+(size*4)
-      if j > #data+1 then break end -- bad data size
+      local j = i+(size*4)-1
+      if j > #data then break end -- bad data size
       -- byte[size*4] packet
       local packet = data:sub(i, j)
       local nbuff = #buff+1
