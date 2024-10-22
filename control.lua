@@ -10,7 +10,7 @@ storage = {}
 ---@class FBNode
 ---@field entity LuaEntity
 ---@field control LuaConstantCombinatorControlBehavior
----@field address uint32
+---@field address int32
 ---@field fcp_send_advertise boolean?
 ---@field tx_last_tick boolean?
 ---@field fail_count number?
@@ -84,13 +84,7 @@ local receive_by_type = {
       local id = tmap[signal.name]
       if not id then goto continue end
 
-      local count = sig.count
-      packet_values[id] = string.char(
-        bit32.band(bit32.rshift(count,24),0xff),
-        bit32.band(bit32.rshift(count,16),0xff),
-        bit32.band(bit32.rshift(count,8 ),0xff),
-        bit32.band(             count    ,0xff)
-      )
+      packet_values[id] = string.pack(">i4", sig.count)
       if id > top then top = id end
       ::continue::
     end
@@ -103,12 +97,8 @@ local receive_by_type = {
       end
     end
 
-    -- stick a 16 bit length (in 32bit words) and 16 bit ethertype on the front
-    table.insert(packet_values, 1, string.char(
-      bit32.band(bit32.rshift(top,8 ),0xff),
-      bit32.band(             top    ,0xff),
-      0x86, 0xdd
-    ))
+    -- stick a 16 bit length (count of 32bit words) and 16 bit ethertype on the front
+    table.insert(packet_values, 1, string.pack(">I2I2", top, 0x86dd))
 
     storage.rconbuffer[#storage.rconbuffer+1] = table.concat(packet_values)
   end,
@@ -119,7 +109,7 @@ local receive_by_type = {
     local entity = node.entity
     local mtype = entity.get_signal(fcpmsgtype, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
     if mtype == 1 then -- solicit
-      local subject = bit32.band(entity.get_signal(fcpsubject, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green))
+      local subject = entity.get_signal(fcpsubject, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
       if subject == node.address or subject == 0 then
         -- got a solicit for me, so send an advertise back...
         node.fcp_send_advertise = true
@@ -131,10 +121,9 @@ local receive_by_type = {
 }
 
 ---@param signal SignalFilter
----@param value integer
+---@param value int32
 ---@return LogisticFilter
 local function signal_value(signal, value)
-  if value > 0x80000000 then value = value - 0x100000000 end
   return {
     value = {
       type = signal.type or "item",
@@ -159,12 +148,7 @@ local function packet_to_filters(packet)
   filters[400] = nil
 
   for i = 1,#packet,4 do
-    local n = bit32.bor(
-      bit32.lshift(packet:byte(i), 24),
-      bit32.lshift(packet:byte(i+1) or 0, 16),
-      bit32.lshift(packet:byte(i+2) or 0, 8),
-      packet:byte(i+3) or 0
-    )
+    local n = string.unpack(">i4", packet, i)
     local sig = storage.id_to_signal[((i-1)/4)+1]
     local index = #filters+1
     filters[index] = signal_value(sig, n)
@@ -172,7 +156,7 @@ local function packet_to_filters(packet)
   return filters
 end
 
----@param address integer
+---@param address int32
 ---@return LogisticFilter[]
 local function fcp_advertise(address)
   return {
@@ -215,7 +199,7 @@ local function on_tick_node(node)
   else
     local col = entity.get_signal(colsig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
     if col == 1 then -- got someone else's tx!
-      local addr = bit32.band(entity.get_signal(addrsig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green))
+      local addr = entity.get_signal(addrsig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
       if addr == node.address or addr == 0 then
         local proto = entity.get_signal(protosig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
         local f = receive_by_type[proto]
@@ -283,9 +267,9 @@ commands.add_command("FBtraff", "", function(param)
     local buff = storage.node.txbuffer
     local i = 1
     repeat
-      -- uint16 size
-      local size = (data:byte(i) * 0x100) + data:byte(i+1)
-      i = i+2
+      ---@type uint16 size
+      local size
+      size,i = string.unpack(">I2", data, i)
       local j = i+(size*4)
       if j > #data+1 then break end -- bad data size
       -- byte[size*4] packet
