@@ -1,0 +1,10 @@
+
+{
+"name": "FeatherBridge",
+"title": "Feathernet External Bridge",
+"version": "2.0.0",
+"author": "justarandomgeek",
+"dependencies": ["base"],
+"factorio_version": "2.0",
+"description": "Allows combinator signals to be routed between worlds, and to/from real computer networks."
+}
