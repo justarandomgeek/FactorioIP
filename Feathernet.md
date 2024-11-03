@@ -7,21 +7,19 @@ Feathernet is a protocol (and implementation) for transmitting packet based data
 
 |  Signal      | Fields                    | Notes       |
 |--------------|---------------------------|-------------|
-| signal-black | Collision Detection       | always=1    |
-| signal-grey  | Destination Address       | 0=Broadcast |
-| signal-white | Protocol Type             |             |
+| signal-check | Collision Detection       | always=1    |
+| signal-dot   | Destination Address       | 0=Broadcast |
+| signal-info  | Protocol Type             |             |
 
-The primary Feathernet header is located on `signal-black`, `signal-grey`, and `signal-white`, in order to leave free as many signals as possible for raw-signal mode. Specifically, These were chosen to avoid vanilla color signals and signals used by Signal Strings, allowing transmission of string-based packets. Item and fluid signals were also avoided to allow transmission of logistic network reports or request lists without the need for additional filtering.
+The primary Feathernet header is located on `signal-check`, `signal-dot`, and `signal-info`, in order to leave free as many signals as possible for raw-signal mode. Specifically, These were chosen to avoid vanilla color signals and signals used by Signal Strings, allowing transmission of string-based packets. Item and fluid signals were also avoided to allow transmission of logistic network reports or request lists without the need for additional filtering.
 
-Collision detection is achieved by the use of a canary signal on `signal-black`. This signal MUST be set to 1 on all transmitted messages. A receiving node MUST discard any messages received with values other than 1, or report them as errors.
+Collision detection is achieved by the use of a canary signal on `signal-check`. This signal MUST be set to 1 on all transmitted messages. A receiving node MUST discard any messages received with values other than 1, or report them as errors.
 
 If a collision is detected while transmitting, the transmitting node MAY retransmit the frame, but it MUST wait a delay period first. This delay MUST vary and SHOULD increase on subsequent retries.
 
-
-All nodes MUST listen for packets addressed to the Broadcast address, `0`. In addition, nodes may selectively listen for packets sent to one or more specific addresses. Multiple nodes MAY use the same address, IF the addresses are derived from higher layer addresses longer than 32bits, but the higher layer will receive the packets for each other node sharing a Feathernet address.
+All nodes MUST listen for packets addressed to the Broadcast address, `0`. In addition, nodes may selectively listen for packets sent to one or more specific addresses.
 
 To allow higher layer protocols to support varied packet structures (reasonably large byte-stream packets, Signal Strings, and full item lists), multiple framing styles are defined, selected by the Protocol Type field.
-
 
 | Protocol Type | Protocol               |
 |---------------|------------------------|
@@ -29,30 +27,46 @@ To allow higher layer protocols to support varied packet structures (reasonably 
 |             1 | IPv6 on vanilla signals|
 |             2 | Feathernet Control     |
 
-
 ## Feathernet Control
 
-Feathernet Control Protocol provides link-layer configuration services, including
+Feathernet Control Protocol provides link-layer configuration services, including auto-addressing and neighbor discovery.
 
 |  Signal      | Fields                    |
 |--------------|---------------------------|
 | signal-0     | Message Type              |
-| signal-1     | Subject Address           |
+| signal-1 ... | Data                      |
 
 | Message Type |                           |
 |--------------|---------------------------|
 | 1            | Neighbor Solicit          |
 | 2            | Neighbor Advertise        |
 
-
 When a node comes up without an address, it MAY select one automatically. To do this, the node takes a random number as a candidate address, and broadcasts a Neighbor Solicit for that address. If no node answers within 180 ticks, the node broadcasts a Neighbor Advertise itself. If the node receives a Neighbor Advertise in response to the Solicit, it selects a new candidate address and starts again.
 
-When any node receives a Neighbor Solicit for it's own address, it MUST respond with a Neighbor Advertise.
+When any node receives a Neighbor Solicit for it's own address, it MUST respond with a Neighbor Advertise. Bridging and routing nodes may also respond to a Solicit for 0/Broadcast.
+
+For Neighbor Solicit the data is the subject node address:
+
+|  Signal      | Fields                    |
+|--------------|---------------------------|
+| signal-0     | Message Type              |
+| signal-1     | Subject Address           |
+
+For Neighbor Advertise, the data is the subject node address, and some node information:
+
+|  Signal      | Fields                    |
+|--------------|---------------------------|
+| signal-0     | Message Type              |
+| signal-1     | Subject Address           |
+| signal-2     | Flags                     |
+
+Flags:
+0x00000001 Router
 
 
 ## IPv6
 
-IPv6 structure is as described in RFC2460, with an example header here (assuming no options) for reference. Signals are assembled big-endian from bytes on the wires - the first byte to come in off the wire is the highest byte of the signal. The last signal will be filled with 0s in the low bytes if required to make a full 32bit word.
+IPv6 structure is as described in RFC8200 (prev RFC2460), with an example header here (assuming no options) for reference. Signals are assembled big-endian from bytes on the wires - the first byte to come in off the wire is the highest byte of the signal. The last signal will be padded with 0s in the low bytes if required to make a full 32bit word.
 
 |   signal | Header Fields                  | Notes            |
 |----------|--------------------------------|------------------|
@@ -106,8 +120,8 @@ ICMPv6 and NDP are defined in RFC4443 and RFC4861, with example headers provided
 Length is in pairs of signals (8 bytes)
 
   * source link layer
-	* type = 1
-    * feathernet address is 4 bytes, which gets split across signals
+    * type = 1
+    * openwrt puts useless info in this for gre-over-v6 tunnel (top 6 bytes of outer address), so ignore it?
   * prefix information
     * type = 3
     * 0 = type:length:prefixlen8:L1:A1:reserved
@@ -144,7 +158,7 @@ To accomodate multiple versions of the game, signal maps are per major version.
 
 ### Signal List Format
 
-Due to the number of signals taken up by protocol headers, it is impractical to use raw signals beyond link-local scope. To facilitate such signalling on wider scales, a Signal List format is defined, to allow embedding arbitrary singals at arbitrary locations in the packet. Signal List may be used as a payload in any protocol that supports binary payload data.
+Due to the number of signals taken up by protocol headers, it is impractical to use raw signals beyond link-local scope. To facilitate such signalling on wider scales, a Signal List format is defined, to allow embedding arbitrary singals at arbitrary locations in the packet. Signal List may be used as a payload in any protocol that supports binary payload data, such as UDP.
 
 | offset | Fields |
 |--------|------------------|
@@ -167,6 +181,12 @@ A Signal List is composed of a single header signal, followed by one or more sig
    * All unlisted values reserved for future use
 
 To support non-sequential signals, an application may also use a list of Signal Lists, simply placing them one after another. Due to the `count` field, a valid Signal List header will always be non-zero, allowing easy identification of the end of a list-of-lists.
+
+flag extended ids
+flags:count
+qual8:kind8:id16
+
+
 
 ## Implementation
 
@@ -253,4 +273,3 @@ Various features are planned but not yet implemented in this version:
      * routers as ::0:0:worl:d_id on clusterio link
      * RA ::worl:d_id:0:0/96 to world link
  * Connect a decently fast CPU for TCP
- * Work with Danielv123 to improve clusterio link to factorio
