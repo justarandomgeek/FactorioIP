@@ -190,6 +190,7 @@ Circuit communication outside of factorio is acheived through FeatherBridge, wit
 Inside Factorio, the FeatherBridge combinator is simply connected to the main link wire. The node will randomly select an address, which may be discovered by FCP Neighbor Discovery.
 
 TODO: multiple FeatherBridge in one work to act as a switch?
+TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?
 
 ### Factorio - Feathernet Link Layer
 
