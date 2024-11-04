@@ -63,6 +63,8 @@ For Neighbor Advertise, the data is the subject node address, and some node info
 Flags:
 0x00000001 Router
 
+network id? both wires? is switch node id the same across all interfaces or unique?
+
 ## IPv6
 
 IPv6 structure is as described in RFC8200 (prev RFC2460), with an example header here (assuming no options) for reference. Signals are assembled big-endian from bytes on the wires - the first byte to come in off the wire is the highest byte of the signal. The last signal will be padded with 0s in the low bytes if required to make a full 32bit word.
