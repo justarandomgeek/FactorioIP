@@ -12,7 +12,7 @@ storage = {}
 ---@field control LuaConstantCombinatorControlBehavior
 ---@field address int32
 ---@field fcp_send_advertise boolean?
----@field tx_last_tick boolean?
+---@field tx_last_tick int32? protoid that did the tx
 ---@field fail_count number?
 ---@field next_retransmit number?
 ---@field txbuffer string[] packets waiting to go out to circuit
@@ -108,18 +108,19 @@ end
 
 
 ---@class FBProtocol
----@field receive fun(node:FBNode):string
+---@field receive fun(node:FBNode, net:LuaCircuitNetwork)
 ---@field try_send fun(node:FBNode):LogisticFilter[]?
+---@field tx_good fun(node:FBNode)
 
+---@type {[int32]:FBProtocol}
 local protocols = {
 
   -- ipv6
   [1] = {
-    receive = function (node)
+    receive = function(node, net)
       if not (storage.rconbuffer and storage.signal_to_id) then return end
-      local entity = node.entity
       -- read to rcon buffer
-      local sigs = entity.get_signals(defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+      local sigs = net.signals
       ---@cast sigs -?
   
       local map = storage.signal_to_id
@@ -163,15 +164,18 @@ local protocols = {
         return packet_to_filters(packet)
       end
     end,
+    tx_good = function(node)
+      -- drop from buffer
+      table.remove(node.txbuffer, 1)
+    end,
   },
 
   -- fcp
   [2] = {
-    receive = function (node)
-      local entity = node.entity
-      local mtype = entity.get_signal(fcpmsgtype, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+    receive = function(node, net)
+      local mtype = net.get_signal(fcpmsgtype)
       if mtype == 1 then -- solicit
-        local subject = entity.get_signal(fcpsubject, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+        local subject = net.get_signal(fcpsubject)
         if subject == node.address or subject == 0 then
           -- got a solicit for me, so send an advertise back...
           node.fcp_send_advertise = true
@@ -180,53 +184,109 @@ local protocols = {
         end
       end
     end,
-    try_send = function (node)
+    try_send = function(node)
       if node.fcp_send_advertise then
         return fcp_advertise(node.address)
+      end
+    end,
+    tx_good = function(node)
+      if node.fcp_send_advertise then
+        node.fcp_send_advertise = nil
       end
     end,
   }
 }
 
 ---@param node FBNode
+---@param reason string
+local function node_disabled(node, reason)
+  local entity = node.entity
+  node.control.enabled = false
+  entity.custom_status = {
+    diode = defines.entity_status_diode.red,
+    label = string.format("Disabled: %s", reason)
+  }
+  entity.combinator_description = string.format("FeatherBridge %8X\nDisabled: %s", node.address, reason)
+end
+
+
+local wire_tag = {
+  [defines.wire_type.red] = "[img=item/red-wire]",
+  [defines.wire_type.green] = "[img=item/green-wire]",
+}
+
+---@param node FBNode
+---@param net LuaCircuitNetwork
+local function node_active(node, net)
+  local entity = node.entity
+  if node.fail_count then
+    entity.custom_status = {
+      diode = defines.entity_status_diode.yellow,
+      label = "Waiting to Retransmit"
+    }
+  else
+    entity.custom_status = {
+      diode = defines.entity_status_diode.green,
+      label = "Ready"
+    }
+  end
+  entity.combinator_description = string.format(
+    "FeatherBridge %8X on %s%i\ntxq:%i rxq:%i\nfail:%i retry:%i",
+    node.address, wire_tag[net.wire_type], net.network_id,
+    #node.txbuffer, #storage.rconbuffer,
+    node.fail_count or 0, node.next_retransmit or 0
+  )
+end
+
+---@param node FBNode
 local function on_tick_node(node)
   local entity = node.entity
 
-  if node.tx_last_tick then
-    -- read collision check signal
+  ---@type LuaCircuitNetwork?
+  local net
+  do
     local rnet = entity.get_circuit_network(defines.wire_connector_id.circuit_red)
     local gnet = entity.get_circuit_network(defines.wire_connector_id.circuit_green)
-    local rcol = rnet and rnet.get_signal(colsig)
-    local gcol = gnet and gnet.get_signal(colsig)
+
+    if rnet and gnet then
+      node_disabled(node, string.format("Multiple Connections [img=item/red-wire]%i [img=item/green-wire]%i", rnet.network_id, gnet.network_id))
+      return
+    end
+    net = rnet or gnet
+
+    if not net then
+      node_disabled(node, "No Connection")
+      return
+    end
+  end
+
+  if node.tx_last_tick then
+    -- read collision check signal
+    local col = net.get_signal(colsig)
 
     node.control.enabled = false
-    node.tx_last_tick = nil
-    if (rcol == nil or rcol == 1) and (gcol == nil or gcol == 1) then
-      -- tx ok on both wires
+    if (col == nil or col == 1) then
+      -- tx ok
+      protocols[node.tx_last_tick].tx_good(node)
       node.fail_count = nil
-      if node.fcp_send_advertise then
-        node.fcp_send_advertise = nil
-      else
-        -- drop from buffer
-        table.remove(node.txbuffer, 1)
-      end
     else
-      -- tx fail (on one or both wires)
-      -- TODO: want to manage them separately? sounds messy..
+      -- tx fail
       node.fail_count = (node.fail_count or 0) + 1
       node.next_retransmit = math.random(1, 2^(node.fail_count+2))
     end
+    node.tx_last_tick = nil
   else
-    local col = entity.get_signal(colsig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+    local col = net.get_signal(colsig)
     if col == 1 then -- got someone else's tx!
-      local addr = entity.get_signal(addrsig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+      local addr = net.get_signal(addrsig)
       if addr == node.address or addr == 0 then
-        local protoid = entity.get_signal(protosig, defines.wire_connector_id.circuit_red, defines.wire_connector_id.circuit_green)
+        local protoid = net.get_signal(protosig)
         local proto = protocols[protoid]
         if proto then
-          local f = proto.receive
-          if f then f(node) end
+          proto.receive(node, net)
         end
+      else
+        -- forward it? to specific queue if known, or to all + ND if not?
       end
     end
     if node.next_retransmit then
@@ -236,11 +296,11 @@ local function on_tick_node(node)
         node.next_retransmit = node.next_retransmit - 1
       end
     else
-      for _, proto in pairs(protocols) do
+      for protoid, proto in pairs(protocols) do
         local filters = proto.try_send(node)
         if filters then
-          node.tx_last_tick = true
-          -- try tx advertise...
+          -- try tx...
+          node.tx_last_tick = protoid
           node.control.sections[1].filters = filters
           node.control.enabled = true
           break
@@ -249,11 +309,7 @@ local function on_tick_node(node)
     end
   end
 
-  entity.combinator_description = string.format(
-    "FeatherBridge %8X\ntxq:%i rxq:%i\nfail:%i retry:%i",
-    node.address, #node.txbuffer, #storage.rconbuffer,
-    node.fail_count or 0, node.next_retransmit or 0
-  )
+  node_active(node, net)
 end
 
 script.on_event(defines.events.on_tick, function()

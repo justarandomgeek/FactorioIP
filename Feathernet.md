@@ -61,9 +61,10 @@ For Neighbor Advertise, the data is the subject node address, and some node info
 | signal-2     | Flags                     |
 
 Flags:
+
 0x00000001 Router
 
-network id? both wires? is switch node id the same across all interfaces or unique?
+A Router node will forward frames to other known links, including external networks.
 
 ## IPv6
 
@@ -149,7 +150,7 @@ UDP is defined in RFC768, with an example header provided here (assuming no IPv6
 
 ### Signal order for IPv6 on signals
 
-In order to provide a mapping from the bytes in a packet to signals, it is neccesary to put the signals in a consistent order. FeatherBridge captures a prepared signal map from in-game to use when translating packets.
+In order to provide a mapping from the bytes in a packet to signals, it is neccesary to put the signals in a consistent order. FeatherBridge captures a prepared signal map from in-game to use when translating packets to/from external networks.
 
 TODO: the list machine, list order choices etc...
 
@@ -172,9 +173,9 @@ A Signal List is composed of a single header signal, followed by one or more sig
   * 0-319 defined as per IPv6 above
   * 320-2047 reserved for ordered signal list expansion
   * 2048-4095 reserved for local use with modded signals
-  * -1 = signal-grey
-  * -2 = signal-white
-  * -3 = signal-black
+  * -1 = signal-dot
+  * -2 = signal-info
+  * -3 = signal-check
   * All unlisted values reserved for future use
 
 To support non-sequential signals, an application may also use a list of Signal Lists, simply placing them one after another. Due to the `count` field, a valid Signal List header will always be non-zero, allowing easy identification of the end of a list-of-lists.
@@ -263,7 +264,8 @@ The graphical display takes images in a headerless [pbm](http://netpbm.sourcefor
 
 ##### Music Player
 
-TODO: update this demo
+TODO: update this demo. maybe hook up the miditorio machine to play real midis?
+
 The music player takes a series of 32bit words each containing 5 consecutive 6 bit notes to play.
 
 | Reserved | Note1 | Note2 | Note3 | Note4 | Note5 |
