@@ -84,10 +84,16 @@ end
 
 ---@param neighbor Neighbor
 local function bridge_solicit(neighbor)
+  if (game.tick - neighbor.last_seen) < 180 and (game.tick - neighbor.last_solicit) < 30 then
+    return
+  end
   ---@type QueuedPacket
   local sol = { dest_addr = 0, payload = fcp.solicit(neighbor.address) }
   bridge_broadcast(sol)
   neighbor.last_solicit = game.tick
+  if (game.tick - neighbor.last_seen) > 60*60 then
+    neighbor.bridge_port = nil
+  end
 end
 
 ---@param packet QueuedPacket
@@ -272,7 +278,7 @@ local function on_tick_node(node)
       if filters then
         -- try tx...
         node.did_tx_last_tick = true
-        node.control.sections[1].filters = filters
+        node.control.sections[1].filters = filters.payload
         node.control.enabled = true
       end
     end
@@ -303,12 +309,22 @@ script.on_event(defines.events.on_tick, function()
   end
 
   for _,node in pairs(storage.nodes) do
-    on_tick_node(node)
+    if node.entity.valid then
+      on_tick_node(node)
+    else
+      for _, neigh in pairs(storage.neighbors) do
+        if neigh.bridge_port == node then
+          neigh.bridge_port = nil
+          neigh.last_seen = 0
+        end
+      end
+      storage.nodes[_] = nil
+    end
   end
 end)
 
 commands.add_command("FBbind", "", function(param)
-  -- bind to the selected constant combinator for data IO (always just one - one per surface?)
+  -- bind to the selected constant cbinator for data IO (always just one - one per surface?)
   local ent = game.get_player(param.player_index).selected
   if ent and ent.type == "constant-combinator" then
     storage.nodes[ent.unit_number] = {
