@@ -1,15 +1,20 @@
+
+---@class FBProtocol
+---@field receive fun(node:FBNode, net:LuaCircuitNetwork)
+
+---@class FBProtocolLib
 return {
 ---@type {[string]:SignalFilter}
   signals = {
-    colsig = {
+    collision = {
         type = "virtual",
         name = "signal-check"
     },
-    protosig = {
+    protoid = {
         type = "virtual",
         name = "signal-info"
     },
-    addrsig = {
+    dest_addr = {
         type = "virtual",
         name = "signal-dot"
     },
@@ -28,4 +33,8 @@ return {
       min = value,
     }
   end,
+  ---@type {[int32]:FBProtocol}
+  handlers = {
+
+  }
 }

@@ -1,32 +1,9 @@
 local protocol = require("protocol.protocol")
 
----@param packet string
----@return LogisticFilter[]
-local function packet_to_filters(packet)
-  ---@type LogisticFilter[]
-  local filters = {
-    protocol.signal_value(protocol.signals.colsig, 1),
-    protocol.signal_value(protocol.signals.protosig, 1), --TODO: type on incoming packets? anything other than ipv6?
-    --TODO: dest address
-  }
-  -- pre-allocate...
-  filters[400] = nil
 
-  local len = #packet
-  
-  for i = 1,len,4 do
-    local n = string.unpack(">i4", packet, i)
-    local sig = storage.id_to_signal[((i-1)/4)+1]
-    local index = #filters+1
-    filters[index] = protocol.signal_value(sig, n)
-  end
-  return filters
-end
-
----@type FBProtocol
-return {
+protocol.handlers[1] = {
   receive = function(node, net)
-    if not (storage.rconbuffer and storage.signal_to_id) then return end
+    if not (storage.out_queue and storage.signal_to_id) then return end
     -- read to rcon buffer
     local sigs = net.signals
     ---@cast sigs -?
@@ -64,16 +41,6 @@ return {
     -- stick a 16 bit length (count of 32bit words) and 16 bit ethertype on the front
     table.insert(packet_values, 1, string.pack(">I2I2", top, 0x86dd))
 
-    storage.rconbuffer[#storage.rconbuffer+1] = table.concat(packet_values)
-  end,
-  try_send = function(node)
-    local packet = node.txbuffer[1]
-    if packet then
-      return packet_to_filters(packet)
-    end
-  end,
-  tx_good = function(node)
-    -- drop from buffer
-    table.remove(node.txbuffer, 1)
+    storage.out_queue[#storage.out_queue+1] = table.concat(packet_values)
   end,
 }

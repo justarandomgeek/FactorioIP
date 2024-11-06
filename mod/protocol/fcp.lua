@@ -18,15 +18,12 @@ local fcpflags = {
   name = "signal-2"
 }
 
-
 ---@param address int32
 ---@return LogisticFilter[]
-local function fcp_advertise(address)
+local function advertise(address)
   return {
-    protocol.signal_value(protocol.signals.colsig, 1),
-    protocol.signal_value(protocol.signals.protosig, 2),
-    --TODO: send specifically to requester when responding to solicit
-    -- but also just do this periodically anyway.
+    protocol.signal_value(protocol.signals.collision, 1),
+    protocol.signal_value(protocol.signals.protoid, 2),
     protocol.signal_value(fcpmsgtype, 2),
     protocol.signal_value(fcpsubject, address),
     protocol.signal_value(fcpflags, 1),
@@ -34,28 +31,53 @@ local function fcp_advertise(address)
 end
 
 
----@type FBProtocol
-return {
+---@param address int32
+---@return LogisticFilter[]
+local function solicit(address)
+  return {
+    protocol.signal_value(protocol.signals.collision, 1),
+    protocol.signal_value(protocol.signals.protoid, 2),
+    protocol.signal_value(fcpmsgtype, 1),
+    protocol.signal_value(fcpsubject, address),
+  }
+end
+
+protocol.handlers[2] = {
   receive = function(node, net)
-    local mtype = net.get_signal(fcpmsgtype)
+    local mtype = net.get_signal(fcpmsgtype --[[@as SignalID]])
     if mtype == 1 then -- solicit
-      local subject = net.get_signal(fcpsubject)
+      local subject = net.get_signal(fcpsubject --[[@as SignalID]])
       if subject == storage.address or subject == 0 then
-        -- got a solicit for me, so send an advertise back...
-        node.fcp_send_advertise = true
+        -- got a solicit for me, so send an advertise back, and jump the line...
+        table.insert(node.out_queue, 1, {
+          dest_addr = 0,
+          retry_count = 4,
+          payload = advertise(storage.address)
+        }--[[@as QueuedPacket]])
         node.fail_count = nil
         node.next_retransmit = nil
       end
+    elseif mtype == 2 then -- advertise
+      -- add or update a neighbor entry...
+      local subject = net.get_signal(fcpsubject --[[@as SignalID]])
+      local neighbor = storage.neighbors[subject]
+      if neighbor then
+        neighbor.bridge_port = node
+        neighbor.last_seen = game.tick
+      else
+        neighbor = {
+          address = subject,
+          bridge_port = node,
+          last_seen = game.tick,
+          last_solicit = 0,
+        }
+        storage.neighbors[subject] = neighbor
+      end
     end
   end,
-  try_send = function(node)
-    if node.fcp_send_advertise then
-      return fcp_advertise(storage.address)
-    end
-  end,
-  tx_good = function(node)
-    if node.fcp_send_advertise then
-      node.fcp_send_advertise = nil
-    end
-  end,
+}
+
+return {
+  advertise = advertise,
+  solicit = solicit,
 }
