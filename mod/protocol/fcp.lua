@@ -42,39 +42,58 @@ local function solicit(address)
   }
 end
 
+---@type {[int32]: fun(node:FBNode, net:LuaCircuitNetwork, input?:boolean)}
+local msg_handlers = {
+  -- solicit
+  [1] = function (node, net, input)
+    if not input then return end
+    local subject = net.get_signal(fcpsubject --[[@as SignalID]])
+    if subject == storage.address or subject == 0 then
+      -- got a solicit for me, so send an advertise back...
+      node.out_queue[#node.out_queue+1] = {
+        dest_addr = 0,
+        retry_count = 4,
+        payload = advertise(storage.address)
+      }
+    end
+  end,
+  -- advertise
+  [2] = function (node, net, input)
+    -- add or update a neighbor entry...
+    --- bit32 to force all one range...
+    local subject = bit32.band(net.get_signal(fcpsubject --[[@as SignalID]]))
+    local neighbor = storage.neighbors[subject]
+    if neighbor then
+      neighbor.bridge_port = node
+      neighbor.last_seen = game.tick
+    else
+      neighbor = {
+        address = subject,
+        bridge_port = node,
+        last_seen = game.tick,
+        last_solicit = 0,
+      }
+      storage.neighbors[subject] = neighbor
+    end
+  end
+}
+
+
 protocol.handlers[2] = {
   receive = function(node, net)
     local mtype = net.get_signal(fcpmsgtype --[[@as SignalID]])
-    if mtype == 1 then -- solicit
-      local subject = net.get_signal(fcpsubject --[[@as SignalID]])
-      if subject == storage.address or subject == 0 then
-        -- got a solicit for me, so send an advertise back, and jump the line...
-        table.insert(node.out_queue, 1, {
-          dest_addr = 0,
-          retry_count = 4,
-          payload = advertise(storage.address)
-        }--[[@as QueuedPacket]])
-        node.fail_count = nil
-        node.next_retransmit = nil
-      end
-    elseif mtype == 2 then -- advertise
-      -- add or update a neighbor entry...
-      local subject = net.get_signal(fcpsubject --[[@as SignalID]])
-      local neighbor = storage.neighbors[subject]
-      if neighbor then
-        neighbor.bridge_port = node
-        neighbor.last_seen = game.tick
-      else
-        neighbor = {
-          address = subject,
-          bridge_port = node,
-          last_seen = game.tick,
-          last_solicit = 0,
-        }
-        storage.neighbors[subject] = neighbor
-      end
+    local handler = msg_handlers[mtype]
+    if handler then
+      handler(node, net, true)
     end
   end,
+  forward = function (node, net)
+    local mtype = net.get_signal(fcpmsgtype --[[@as SignalID]])
+    local handler = msg_handlers[mtype]
+    if handler then
+      handler(node, net)
+    end
+  end
 }
 
 return {

@@ -136,10 +136,7 @@ local function bridge_forward(node, net, dest_addr)
   ---@type LogisticFilter[]
   local payload = {}
   for _, signal in pairs(signals) do
-    payload[#payload+1] = {
-      value = signal.signal --[[@as SignalFilter.0]],
-      min = signal.count,
-    }
+    payload[#payload+1] = protocol.signal_value(signal.signal, signal.count)
   end
   bridge_send({
     dest_addr = dest_addr or 0,
@@ -237,8 +234,9 @@ local function on_tick_node(node)
 
       if retry then
         -- set retry delay
-        node.fail_count = (node.fail_count or 0) + 1
-        node.next_retransmit = math.random(1, 2^(node.fail_count+2))
+        local fail_count = (node.fail_count or 0) + 1
+        node.fail_count = fail_count
+        node.next_retransmit = math.random(2^(fail_count), 2^(fail_count+2))
       else
         -- drop
         table.remove(node.out_queue, 1)
@@ -248,19 +246,19 @@ local function on_tick_node(node)
     end
   else
     if col == 1 then -- got someone else's tx!
-      local addr = net.get_signal(protocol.signals.dest_addr --[[@as SignalID]])
+      local addr = bit32.band(net.get_signal(protocol.signals.dest_addr --[[@as SignalID]]))
+      local protoid = net.get_signal(protocol.signals.protoid --[[@as SignalID]])
+      local proto = protocol.handlers[protoid]
       if addr == storage.address or addr == 0 then
-        -- for me/bcast?
-        local protoid = net.get_signal(protocol.signals.protoid --[[@as SignalID]])
-        local proto = protocol.handlers[protoid]
-        if proto then
+        if proto and proto.receive then
           proto.receive(node, net)
         end
-        if addr == 0  then
-          --also forward broadcasts to other links?
-          bridge_forward(node, net)
-        end
       else
+        if proto and proto.forward then
+          proto.forward(node, net)
+        end
+      end
+      if addr ~= storage.address then
         --forward it, to specific queue if known, or to all + ND if not
         bridge_forward(node, net, addr)
       end
@@ -268,8 +266,8 @@ local function on_tick_node(node)
 
     -- do tx activity...
     if node.next_retransmit then
-      if node.next_retransmit == 1 then
-      node.next_retransmit = nil
+      if node.next_retransmit <= 1 then
+        node.next_retransmit = nil
       else
         node.next_retransmit = node.next_retransmit - 1
       end
@@ -335,6 +333,19 @@ commands.add_command("FBbind", "", function(param)
       out_queue = {},
     }
   end
+end)
+
+commands.add_command("FBneighbors", "", function (param)
+  local player = game.get_player(param.player_index)
+  ---@cast player -?
+  local out = {
+    "neighbors:",
+  }
+  for _, neighbor in pairs(storage.neighbors) do
+    local port = neighbor.bridge_port and neighbor.bridge_port.unit_number or 0
+    out[#out+1] = string.format("addr %8X port %i last_seen %i last_solicit %i", neighbor.address, port, neighbor.last_seen, neighbor.last_solicit)
+  end
+  player.print(table.concat(out, "\n"))
 end)
 
 commands.add_command("FBtraff", "", function(param)

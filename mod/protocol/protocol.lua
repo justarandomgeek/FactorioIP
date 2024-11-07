@@ -1,6 +1,7 @@
 
 ---@class FBProtocol
 ---@field receive fun(node:FBNode, net:LuaCircuitNetwork)
+---@field forward? fun(node:FBNode, net:LuaCircuitNetwork)
 
 ---@class FBProtocolLib
 return {
