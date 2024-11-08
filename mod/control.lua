@@ -155,7 +155,7 @@ local function node_disabled(node, reason)
     label = string.format("Disabled: %s", reason)
   }
   --TODO: locale all these string.formats
-  entity.combinator_description = string.format("FeatherBridge %8X\nDisabled: %s", storage.address, reason)
+  entity.combinator_description = string.format("FeatherBridge %8X\nDisabled: %s", bit32.band(storage.address), reason)
 end
 
 
@@ -181,7 +181,7 @@ local function node_active(node, net)
   end
   entity.combinator_description = string.format(
     "FeatherBridge %8X on %s%i\nqueue:%i fail:%i retry:%i",
-    storage.address, wire_tag[net.wire_type], net.network_id,
+    bit32.band(storage.address), wire_tag[net.wire_type], net.network_id,
     #node.out_queue, node.fail_count or 0, node.next_retransmit or 0
   )
 end
@@ -246,7 +246,7 @@ local function on_tick_node(node)
     end
   else
     if col == 1 then -- got someone else's tx!
-      local addr = bit32.band(net.get_signal(protocol.signals.dest_addr --[[@as SignalID]]))
+      local addr = net.get_signal(protocol.signals.dest_addr --[[@as SignalID]])
       local protoid = net.get_signal(protocol.signals.protoid --[[@as SignalID]])
       local proto = protocol.handlers[protoid]
       if addr == storage.address or addr == 0 then
@@ -343,7 +343,27 @@ commands.add_command("FBneighbors", "", function (param)
   }
   for _, neighbor in pairs(storage.neighbors) do
     local port = neighbor.bridge_port and neighbor.bridge_port.unit_number or 0
-    out[#out+1] = string.format("addr %8X port %i last_seen %i last_solicit %i", neighbor.address, port, neighbor.last_seen, neighbor.last_solicit)
+    out[#out+1] = string.format("addr %8X port %i last_seen %i last_solicit %i", bit32.band(neighbor.address), port, neighbor.last_seen, neighbor.last_solicit)
+  end
+  player.print(table.concat(out, "\n"))
+end)
+
+commands.add_command("FBqueues", "", function (param)
+  local player = game.get_player(param.player_index)
+  ---@cast player -?
+  local out = {
+    "queues:",
+    string.format("rcon: in %i out %i", #storage.in_queue, #storage.out_queue)
+  }
+  for _, node in pairs(storage.nodes) do
+    local status = {}
+    if node.did_tx_last_tick then
+      status[#status+1] = "did_tx"
+    end
+    if node.fail_count then
+      status[#status+1] = string.format("fail %i retrans %i", node.fail_count, node.next_retransmit)
+    end
+    out[#out+1] = string.format("node %i queue %i adv %i %s", node.unit_number, #node.out_queue, node.next_advertise, table.concat(status, " "))
   end
   player.print(table.concat(out, "\n"))
 end)

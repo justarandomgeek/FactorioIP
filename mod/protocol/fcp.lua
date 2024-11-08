@@ -60,8 +60,7 @@ local msg_handlers = {
   -- advertise
   [2] = function (node, net, input)
     -- add or update a neighbor entry...
-    --- bit32 to force all one range...
-    local subject = bit32.band(net.get_signal(fcpsubject --[[@as SignalID]]))
+    local subject = net.get_signal(fcpsubject --[[@as SignalID]])
     local neighbor = storage.neighbors[subject]
     if neighbor then
       neighbor.bridge_port = node
