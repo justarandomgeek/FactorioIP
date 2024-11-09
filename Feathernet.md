@@ -26,6 +26,7 @@ To allow higher layer protocols to support varied packet structures (reasonably 
 |             0 | raw signals            |
 |             1 | IPv6 on vanilla signals|
 |             2 | Feathernet Control     |
+|           3-5 | Signal Map Transfer    |
 
 ## Feathernet Control
 
@@ -49,26 +50,58 @@ For Neighbor Solicit the data is the subject node address:
 
 |  Signal      | Fields                    |
 |--------------|---------------------------|
-| signal-0     | Message Type              |
+| signal-0     | Message Type = 1          |
 | signal-1     | Subject Address           |
 
 For Neighbor Advertise, the data is the subject node address, and some node information:
 
 |  Signal      | Fields                    |
 |--------------|---------------------------|
-| signal-0     | Message Type              |
+| signal-0     | Message Type = 2          |
 | signal-1     | Subject Address           |
 | signal-2     | Flags                     |
 
 Flags:
 
 0x00000001 Router
+0x00000002 Supports Signal Map Transfer
 
 A Router node will forward frames to other known links, including external networks.
 
+## Signal Map Transfer
+
+To support protocols that require an ordered stream of data (such as IP), an ordered map of the signals must be shared among devices. A node that supports Map Transfer should indicate this capability in FCP Advertise messages. A host may broadcast FCP Solicit to find such nodes.
+
+### Map Request
+
+|  Signal      | Fields                    |
+|--------------|---------------------------|
+| signal-info  | Protocol ID = 3           |
+
+This should be sent unicast to a host that has previously advertised the capability.
+
+### Map Transfer
+
+|  Signal      | Fields                    |
+|--------------|---------------------------|
+| signal-info  | Protocol ID = 4           |
+
+All signals other than the three reserved signals of the Feathernet header contain their index in the map.
+
+### Extended Map Transfer
+
+|  Signal      | Fields                    |
+|--------------|---------------------------|
+| signal-info  | Protocol ID = 5           |
+| signal-0     | Index for signal-check    |
+| signal-1     | Index for signal-info     |
+| signal-2     | Index for signal-dot      |
+
+If a map provider wishes to include indexes for the reserved header signals, they can be provided as a second message.
+
 ## IPv6
 
-IPv6 structure is as described in RFC8200 (prev RFC2460), with an example header here (assuming no options) for reference. Signals are assembled big-endian from bytes on the wires - the first byte to come in off the wire is the highest byte of the signal. The last signal will be padded with 0s in the low bytes if required to make a full 32bit word.
+IPv6 structure is as described in RFC8200 (prev RFC2460), with an example header here (assuming no options) for reference using the reference implemention's signal map. Signals are assembled big-endian from bytes on the wire - the first byte to come in off the wire is the highest byte of the signal. The last signal will be padded with 0s in the low bytes if required to make a full 32bit word.
 
 |   signal | Header Fields                  | Notes            |
 |----------|--------------------------------|------------------|
@@ -148,15 +181,10 @@ UDP is defined in RFC768, with an example header provided here (assuming no IPv6
 | signal-C | data |
 |    ...   | data... |
 
-### Signal order for IPv6 on signals
-
-In order to provide a mapping from the bytes in a packet to signals, it is neccesary to put the signals in a consistent order. FeatherBridge captures a prepared signal map from in-game to use when translating packets to/from external networks.
-
-TODO: the list machine, list order choices etc...
 
 ### Signal List Format
 
-Due to the number of signals taken up by protocol headers, it is impractical to use raw signals beyond link-local scope. To facilitate such signalling on wider scales, a Signal List format is defined, to allow embedding arbitrary singals at arbitrary locations in the packet. Signal List may be used as a payload in any protocol that supports binary payload data, such as UDP.
+Due to the number of signals taken up by protocol headers, it is impractical to use raw signals beyond link-local scope. To facilitate such signalling on wider scales, a Signal List format is defined, to allow embedding arbitrary signals at arbitrary locations in the packet. Signal List may be used as a payload in any protocol that supports binary payload data, such as UDP.
 
 | offset | Fields |
 |--------|------------------|
@@ -168,21 +196,12 @@ A Signal List is composed of a single header signal, followed by one or more sig
 
 * `flags`: 8 bit control flags
   * All undefined flag bits MUST be set to 0.
+  * 0x01: has map id
+    * first data signal is mapid (not included in count)
 * `count`: 8 bit count of sequential data signals
-* `signalID`: 16 bit signal ID
-  * 0-319 defined as per IPv6 above
-  * 320-2047 reserved for ordered signal list expansion
-  * 2048-4095 reserved for local use with modded signals
-  * -1 = signal-dot
-  * -2 = signal-info
-  * -3 = signal-check
-  * All unlisted values reserved for future use
+* `signalID`: 16 bit signal ID from signal map
 
 To support non-sequential signals, an application may also use a list of Signal Lists, simply placing them one after another. Due to the `count` field, a valid Signal List header will always be non-zero, allowing easy identification of the end of a list-of-lists.
-
-flag extended ids
-flags:count
-qual8:kind8:id16
 
 ## Implementation
 
@@ -190,9 +209,11 @@ qual8:kind8:id16
 
 Circuit communication outside of factorio is acheived through FeatherBridge, with a mod participating in the circuit network and an external bridge communicating with it via RCON to forward packets to/from a local router over GRE.
 
-Inside Factorio, the FeatherBridge combinator is simply connected to the main link wire. The node will randomly select an address, which may be discovered by FCP Neighbor Discovery.
+Inside Factorio, the FeatherBridge combinator is simply connected to the main link wire, and each will act as a switch port on the bridge. The bridge will randomly select an address, which may be discovered by FCP Neighbor Discovery.
 
-TODO: multiple FeatherBridge in one work to act as a switch?
+FeatherBridge supports receiving and re-sharing a prepared signal map  via Signal Map Transfer, which will be used when translating ordered data packets to/from external networks.
+
+TODO: the list machine, list order choices etc...
 TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?
 
 ### Factorio - Feathernet Link Layer
@@ -201,7 +222,7 @@ TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?
 
 ![LL Receiver](Screenshots/LLRecv.png) TODO new screenshots for everything
 
-The Feathernet receiver is simply a filter checking for collision detect=1 and destination equal to broadcast or the node's own address. Received packets are sent to higher layer protocols as they come in, with collision detect and address cleared for working space.
+The Feathernet receiver is simply a filter checking for collision detect=1 and destination equal to broadcast or the node's own address. Received packets are sent to higher layer protocols as they come in.
 
 #### Transmitter
 
