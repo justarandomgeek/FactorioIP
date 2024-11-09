@@ -196,12 +196,13 @@ A Signal List is composed of a single header signal, followed by one or more sig
 
 * `type`: 8 bit type
   * 0x00: signal values
+    * zero count indicates end of list-of-lists
   * 0x01: Map ID
     * count=0, signalID=MapID for subsequent lists
 * `count`: 8 bit count of sequential data signals
 * `signalID`: 16 bit signal ID from signal map
 
-To support non-sequential signals, an application may also use a list of Signal Lists, simply placing them one after another. Due to the `count` field, a valid Signal List header will always be non-zero, allowing easy identification of the end of a list-of-lists.
+To support non-sequential signals, an application may also use a list of Signal Lists, simply placing them one after another. Due to the `type` and `count` fields, a valid Signal List header will always be non-zero, allowing easy identification of the end of a list-of-lists.
 
 ## Implementation
 
