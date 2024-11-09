@@ -188,16 +188,16 @@ Due to the number of signals taken up by protocol headers, it is impractical to 
 
 | offset | Fields |
 |--------|------------------|
-|    0   | flags:count:signalID|
+|    0   | type:count:signalID|
 |    1   | data |
 |   ...  | data ... |
 
 A Signal List is composed of a single header signal, followed by one or more signal values. The header signal contains three fields:
 
-* `flags`: 8 bit control flags
-  * All undefined flag bits MUST be set to 0.
-  * 0x01: has map id
-    * first data signal is mapid (not included in count)
+* `type`: 8 bit type
+  * 0x00: signal values
+  * 0x01: Map ID
+    * count=0, signalID=MapID for subsequent lists
 * `count`: 8 bit count of sequential data signals
 * `signalID`: 16 bit signal ID from signal map
 
