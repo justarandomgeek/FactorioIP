@@ -26,7 +26,7 @@ local function advertise(address)
     protocol.signal_value(protocol.signals.protoid, 2),
     protocol.signal_value(fcpmsgtype, 2),
     protocol.signal_value(fcpsubject, address),
-    protocol.signal_value(fcpflags, 1),
+    protocol.signal_value(fcpflags, 3),
   }
 end
 

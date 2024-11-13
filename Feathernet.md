@@ -74,9 +74,11 @@ To support protocols that require an ordered stream of data (such as IP), an ord
 
 ### Map Request
 
-|  Signal      | Fields                    |
-|--------------|---------------------------|
-| signal-info  | Protocol ID = 3           |
+|  Signal      | Fields                     |
+|--------------|----------------------------|
+| signal-info  | Protocol ID = 3            |
+| entity/entity-ghost | Requester's address |
+| entity/item-request-proxy  | Map ID       |
 
 This should be sent unicast to a host that has previously advertised the capability.
 
@@ -85,19 +87,22 @@ This should be sent unicast to a host that has previously advertised the capabil
 |  Signal      | Fields                    |
 |--------------|---------------------------|
 | signal-info  | Protocol ID = 4           |
+| entity/item-request-proxy  | Map ID      |
 
-All signals other than the three reserved signals of the Feathernet header contain their index in the map.
+All signals not reserved by this header or the Feathernet header contain their own index (+1 to prevent the zeroth signal from being dropped) in the map.
 
 ### Extended Map Transfer
 
 |  Signal      | Fields                    |
 |--------------|---------------------------|
 | signal-info  | Protocol ID = 5           |
-| signal-0     | Index for signal-check    |
-| signal-1     | Index for signal-info     |
-| signal-2     | Index for signal-dot      |
+| entity/item-request-proxy  | Map ID      |
+| index 0      | Index for (collision)     |
+| index 1      | Index for (protocol)      |
+| index 2      | Index for (dest address)  |
+| index 3      | Index for (MapID)         |
 
-If a map provider wishes to include indexes for the reserved header signals, they can be provided as a second message.
+If a map provider wishes to include indexes for the reserved header signals, they can be provided as a second message, using the indexes in the first.
 
 ## IPv6
 
@@ -212,7 +217,7 @@ Circuit communication outside of factorio is acheived through FeatherBridge, wit
 
 Inside Factorio, the FeatherBridge combinator is simply connected to the main link wire, and each will act as a switch port on the bridge. The bridge will randomly select an address, which may be discovered by FCP Neighbor Discovery.
 
-FeatherBridge supports receiving and re-sharing a prepared signal map  via Signal Map Transfer, which will be used when translating ordered data packets to/from external networks.
+FeatherBridge supports receiving and re-sharing a prepared signal map of 375 signals (1500 bytes) via Signal Map Transfer, which will be used when translating ordered data packets to/from external networks. FeatherBridge ignores (and does not send) the Extended Map message with header signal indexes, and only supports a single map (mapid=0), but other devices on the network may use other maps for non-IP traffic or for Signal List messages over IP.
 
 TODO: the list machine, list order choices etc...
 TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?

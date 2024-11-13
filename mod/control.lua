@@ -1,7 +1,7 @@
 ---@class (exact) FBStorage
 ---@field address int32 one address for the whole bridge - used as link layer dest for traffic to forward to external
 ---@field nodes {[integer]:FBNode}
----@field id_to_signal {[integer]:SignalFilter}
+---@field id_to_signal {[integer]:SignalFilter.0}
 ---@field signal_to_id {[QualityID]:{[SignalIDType]:{[string]:integer}}}
 ---@field out_queue string[] packets waiting to go out to rcon
 ---@field in_queue string[] packets from rcon waiting to go out to bridge dispatch
@@ -146,7 +146,7 @@ local function bridge_forward(node, net, dest_addr)
 end
 
 ---@param node FBNode
----@p reason string
+---@param reason string
 local function node_disabled(node, reason)
   local entity = node.entity
   node.control.enabled = false
@@ -251,7 +251,7 @@ local function on_tick_node(node)
       local proto = protocol.handlers[protoid]
       if addr == storage.address or addr == 0 then
         if proto and proto.receive then
-          proto.receive(node, net)
+          proto.receive(node, net, addr == 0)
         end
       else
         if proto and proto.forward then
@@ -292,6 +292,17 @@ script.on_nth_tick(30*60, function(e)
   })
 end)
 
+script.on_init(function()
+  storage = {
+    address = math.random(1,0x7fffffff),
+    nodes = {},
+    id_to_signal = {},
+    signal_to_id = {},
+    out_queue = {},
+    in_queue = {},
+    neighbors = {},
+  }
+end)
 
 script.on_event(defines.events.on_tick, function()
   --dispatch one frame (or more?) from storage.in_queue before processing nodes...
@@ -399,53 +410,106 @@ commands.add_command("FBtraff", "", function(param)
 
 end)
 
+-- map request
+protocol.handlers[3] = {
+  receive = function(node, net, bcast)
+    if bcast then return end
 
-commands.add_command("FBtakemap", "", function(param)
-  -- capture signal map from selected
-  if not param.player_index then return end
-  local player = game.get_player(param.player_index) --[[@as LuaPlayer]]
-  local selected = player.selected
-  if not selected then player.print("nothing selected") return end
+    local mapid = net.get_signal({type="entity", name="item-request-proxy"})
+    if mapid ~= 0 then return end
 
-  --TODO: select wire(s)
-  local captured = selected.get_signals(defines.wire_connector_id.combinator_input_red, defines.wire_connector_id.combinator_input_green)
-  if not captured then return end
+    local dest_addr = net.get_signal({type="entity", name="entity-ghost"})
 
-  local by_value = {}
-  for _, signal in pairs(captured) do
-    local c = signal.count
-    if not by_value[c] then by_value[c] = {} end
-    by_value[c][#by_value[c]+1] = signal.signal
-  end
+    ---@type LogisticFilter[]
+    local map_out = {
+      protocol.signal_value(protocol.signals.collision, 1),
+      protocol.signal_value(protocol.signals.protoid, 4),
+      protocol.signal_value(protocol.signals.dest_addr, dest_addr),
+    }
 
-  local map = {}
-  local rmap = {}
-
-  for _, group in pairs(by_value) do
-    for _, signal in pairs(group) do
-      local i = #map+1
-      map[i] = signal
-
-      local qual = rmap[signal.quality or "normal"]
-      if not qual then
-        qual = {}
-        rmap[signal.quality or "normal"] = qual
-      end
-
-      local sigtype = qual[signal.type or "item"]
-      if not sigtype then
-        sigtype = {}
-        qual[signal.type or "item"] = sigtype
-      end
-      sigtype[signal.name] = i
-
-      -- stop at 375 signals = 1500 bytes
-      if i >= 375 then goto map_finished end
+    for i, signal in pairs(storage.id_to_signal) do
+      map_out[#map_out+1] = protocol.signal_value(signal, i)
     end
-  end
-  ::map_finished::
-  storage.id_to_signal = map
-  storage.signal_to_id = rmap
-  player.print("took "..#storage.id_to_signal.." signals")
-  helpers.write_file("feathermap.txt", serpent.block(storage.id_to_signal))
-end)
+
+    bridge_send({ dest_addr = dest_addr, retry_count = 4, payload = map_out })
+  end,
+}
+
+
+---@type {[QualityID]:{[SignalIDType]:{[string]:boolean}}}
+local map_skip_list = {
+  normal = {
+    virtual = {
+      ["signal-check"] = true,
+      ["signal-info"] = true,
+      ["signal-dot"] = true,
+    },
+    entity = {
+      ["item-request-proxy"] = true,
+    }
+  }
+}
+
+
+---@param signal SignalID
+---@return boolean?
+local function map_skip(signal)
+  local qual = map_skip_list[signal.quality or "normal"]
+  if not qual then return end
+  local stype = qual[signal.type or "item"]
+  if not stype then return end
+  return stype[signal.name]
+end
+
+-- map transfer
+protocol.handlers[4] = {
+  receive = function(node, net, bcast)
+    if bcast then return end
+
+    local mapid = net.get_signal({type="entity", name="item-request-proxy"})
+    if mapid ~= 0 then return end
+
+    -- load new map
+    local captured = net.signals
+    if not captured then return end
+
+    local by_value = {}
+    for _, signal in pairs(captured) do
+      if map_skip(signal.signal) then goto skip end
+      local c = signal.count
+      if not by_value[c] then by_value[c] = {} end
+      by_value[c][#by_value[c]+1] = signal.signal
+      ::skip::
+    end
+
+    local map = {}
+    local rmap = {}
+
+    for _, group in pairs(by_value) do
+      for _, signal in pairs(group) do
+        local i = #map+1
+        map[i] = signal
+
+        local qual = rmap[signal.quality or "normal"]
+        if not qual then
+          qual = {}
+          rmap[signal.quality or "normal"] = qual
+        end
+
+        local sigtype = qual[signal.type or "item"]
+        if not sigtype then
+          sigtype = {}
+          qual[signal.type or "item"] = sigtype
+        end
+        sigtype[signal.name] = i
+
+        -- stop at 375 signals = 1500 bytes
+        if i >= 375 then goto map_finished end
+      end
+    end
+    ::map_finished::
+    storage.id_to_signal = map
+    storage.signal_to_id = rmap
+    helpers.write_file("featherbridge_map.txt", serpent.block(storage.id_to_signal))
+  end,
+}
