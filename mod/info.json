@@ -1,7 +1,7 @@
 
 {
 "name": "FeatherBridge",
-"title": "Feathernet External Bridge",
+"title": "Feathernet Bridge",
 "version": "2.0.0",
 "author": "justarandomgeek",
 "dependencies": ["base"],
