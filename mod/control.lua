@@ -32,7 +32,8 @@ storage = {}
 local protocol = require("protocol.protocol")
 require("protocol.ipv6")
 local fcp = require("protocol.fcp")
-
+local bridge = require("protocol.bridge")
+require("protocol.map_transfer")
 
 ---@param packet string
 ---@return LogisticFilter[] payload
@@ -66,84 +67,6 @@ local function packet_to_filters(packet)
   return filters,dest
 end
 
-
----@param packet QueuedPacket
----@param from_port? FBNode
-local function bridge_broadcast(packet, from_port)
-  for _, node in pairs(storage.nodes) do
-    if node ~= from_port then
-      -- shallow-copy the packet for separate retry counts. sharing payload is fine, it's read-only.
-      node.out_queue[#node.out_queue+1] = {
-        dest_addr = packet.dest_addr,
-        retry_count = packet.retry_count,
-        payload = packet.payload,
-      }
-    end
-  end
-end
-
----@param neighbor Neighbor
-local function bridge_solicit(neighbor)
-  if (game.tick - neighbor.last_seen) < 180 and (game.tick - neighbor.last_solicit) < 30 then
-    return
-  end
-  ---@type QueuedPacket
-  local sol = { dest_addr = 0, payload = fcp.solicit(neighbor.address) }
-  bridge_broadcast(sol)
-  neighbor.last_solicit = game.tick
-  if (game.tick - neighbor.last_seen) > 60*60 then
-    neighbor.bridge_port = nil
-  end
-end
-
----@param packet QueuedPacket
----@param from_port? FBNode
-local function bridge_send(packet, from_port)
-  if packet.dest_addr ~= 0 then
-    local neighbor = storage.neighbors[packet.dest_addr]
-    if neighbor and neighbor.bridge_port then
-      -- send it! (unless from_port == bridge_port)
-      if from_port ~= neighbor.bridge_port then
-        local out_queue = neighbor.bridge_port.out_queue
-        out_queue[#out_queue+1] = packet
-      end
-      -- also broadcast a solicit if stale
-      bridge_solicit(neighbor)
-    else
-      -- broadcast the packet...
-      bridge_broadcast(packet, from_port)
-      -- ... and a solicit, to know where for next time...
-      neighbor = {
-        address = packet.dest_addr,
-        last_seen = 0,
-        last_solicit = 0,
-      }
-      storage.neighbors[neighbor.address] = neighbor
-      bridge_solicit(neighbor)
-    end
-  else
-    -- broadcast the packet
-    bridge_broadcast(packet, from_port)
-  end
-end
-
----@param node FBNode
----@param net LuaCircuitNetwork
----@param dest_addr? int32
-local function bridge_forward(node, net, dest_addr)
-  local signals = net.signals
-  ---@cast signals -?
-  ---@type LogisticFilter[]
-  local payload = {}
-  for _, signal in pairs(signals) do
-    payload[#payload+1] = protocol.signal_value(signal.signal, signal.count)
-  end
-  bridge_send({
-    dest_addr = dest_addr or 0,
-    retry_count = 2,
-    payload = payload,
-  }, node)
-end
 
 ---@param node FBNode
 ---@param reason string
@@ -260,7 +183,7 @@ local function on_tick_node(node)
       end
       if addr ~= storage.address then
         --forward it, to specific queue if known, or to all + ND if not
-        bridge_forward(node, net, addr)
+        bridge.forward(node, net, addr)
       end
     end
 
@@ -286,7 +209,7 @@ local function on_tick_node(node)
 end
 
 script.on_nth_tick(30*60, function(e)
-  bridge_broadcast({
+  bridge.broadcast({
     dest_addr = 0,
     payload = fcp.advertise(storage.address)
   })
@@ -309,7 +232,7 @@ script.on_event(defines.events.on_tick, function()
   local packet = storage.in_queue[1]
   if packet then
     local filters,dest_addr = packet_to_filters(packet)
-    bridge_send({
+    bridge.send({
       dest_addr = dest_addr,
       retry_count = 4,
       payload = filters,
@@ -409,107 +332,3 @@ commands.add_command("FBtraff", "", function(param)
   end
 
 end)
-
--- map request
-protocol.handlers[3] = {
-  receive = function(node, net, bcast)
-    if bcast then return end
-
-    local mapid = net.get_signal({type="entity", name="item-request-proxy"})
-    if mapid ~= 0 then return end
-
-    local dest_addr = net.get_signal({type="entity", name="entity-ghost"})
-
-    ---@type LogisticFilter[]
-    local map_out = {
-      protocol.signal_value(protocol.signals.collision, 1),
-      protocol.signal_value(protocol.signals.protoid, 4),
-      protocol.signal_value(protocol.signals.dest_addr, dest_addr),
-    }
-
-    for i, signal in pairs(storage.id_to_signal) do
-      map_out[#map_out+1] = protocol.signal_value(signal, i)
-    end
-
-    bridge_send({ dest_addr = dest_addr, retry_count = 4, payload = map_out })
-  end,
-}
-
-
----@type {[QualityID]:{[SignalIDType]:{[string]:boolean}}}
-local map_skip_list = {
-  normal = {
-    virtual = {
-      ["signal-check"] = true,
-      ["signal-info"] = true,
-      ["signal-dot"] = true,
-    },
-    entity = {
-      ["item-request-proxy"] = true,
-    }
-  }
-}
-
-
----@param signal SignalID
----@return boolean?
-local function map_skip(signal)
-  local qual = map_skip_list[signal.quality or "normal"]
-  if not qual then return end
-  local stype = qual[signal.type or "item"]
-  if not stype then return end
-  return stype[signal.name]
-end
-
--- map transfer
-protocol.handlers[4] = {
-  receive = function(node, net, bcast)
-    if bcast then return end
-
-    local mapid = net.get_signal({type="entity", name="item-request-proxy"})
-    if mapid ~= 0 then return end
-
-    -- load new map
-    local captured = net.signals
-    if not captured then return end
-
-    local by_value = {}
-    for _, signal in pairs(captured) do
-      if map_skip(signal.signal) then goto skip end
-      local c = signal.count
-      if not by_value[c] then by_value[c] = {} end
-      by_value[c][#by_value[c]+1] = signal.signal
-      ::skip::
-    end
-
-    local map = {}
-    local rmap = {}
-
-    for _, group in pairs(by_value) do
-      for _, signal in pairs(group) do
-        local i = #map+1
-        map[i] = signal
-
-        local qual = rmap[signal.quality or "normal"]
-        if not qual then
-          qual = {}
-          rmap[signal.quality or "normal"] = qual
-        end
-
-        local sigtype = qual[signal.type or "item"]
-        if not sigtype then
-          sigtype = {}
-          qual[signal.type or "item"] = sigtype
-        end
-        sigtype[signal.name] = i
-
-        -- stop at 375 signals = 1500 bytes
-        if i >= 375 then goto map_finished end
-      end
-    end
-    ::map_finished::
-    storage.id_to_signal = map
-    storage.signal_to_id = rmap
-    helpers.write_file("featherbridge_map.txt", serpent.block(storage.id_to_signal))
-  end,
-}
