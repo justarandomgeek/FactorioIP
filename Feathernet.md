@@ -63,8 +63,11 @@ For Neighbor Advertise, the data is the subject node address, and some node info
 
 Flags:
 
-0x00000001 Router
-0x00000002 Supports Signal Map Transfer
+| Value      | Purpose                        |
+|------------|--------------------------------|
+| 0x00000001 | Router                         |
+| 0x00000002 | Supports Signal Map Transfer id=0   |
+| 0x00000004 | Supports Signal Map Transfer id!=0  |
 
 A Router node will forward frames to other known links, including external networks.
 
@@ -186,7 +189,6 @@ UDP is defined in RFC768, with an example header provided here (assuming no IPv6
 | signal-C | data |
 |    ...   | data... |
 
-
 ### Signal List Format
 
 Due to the number of signals taken up by protocol headers, it is impractical to use raw signals beyond link-local scope. To facilitate such signalling on wider scales, a Signal List format is defined, to allow embedding arbitrary signals at arbitrary locations in the packet. Signal List may be used as a payload in any protocol that supports binary payload data, such as UDP.
@@ -220,6 +222,7 @@ Inside Factorio, the FeatherBridge combinator is simply connected to the main li
 FeatherBridge supports receiving and re-sharing a prepared signal map of 375 signals (1500 bytes) via Signal Map Transfer, which will be used when translating ordered data packets to/from external networks. FeatherBridge ignores (and does not send) the Extended Map message with header signal indexes, and only supports a single map (mapid=0), but other devices on the network may use other maps for non-IP traffic or for Signal List messages over IP.
 
 TODO: the list machine, list order choices etc...
+
 TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?
 
 ### Factorio - Feathernet Link Layer
