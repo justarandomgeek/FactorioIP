@@ -21,7 +21,7 @@ end
 
 ---@param neighbor Neighbor
 function bridge.solicit(neighbor)
-  if (game.tick - neighbor.last_seen) < 180 and (game.tick - neighbor.last_solicit) < 30 then
+  if (game.tick - neighbor.last_seen) < 30*60 or (game.tick - neighbor.last_solicit) < 30 then
     return
   end
   ---@type QueuedPacket
