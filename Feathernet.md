@@ -66,8 +66,7 @@ Flags:
 | Value      | Purpose                        |
 |------------|--------------------------------|
 | 0x00000001 | Router                         |
-| 0x00000002 | Supports Signal Map Transfer id=0   |
-| 0x00000004 | Supports Signal Map Transfer id!=0  |
+| 0x00000002 | Supports Signal Map Transfer   |
 
 A Router node will forward frames to other known links, including external networks.
 
@@ -229,21 +228,17 @@ TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?
 
 #### Receiver
 
-![LL Receiver](Screenshots/LLRecv.png) TODO new screenshots for everything
+![LL Receiver](Screenshots/LLRecv.png)
 
-The Feathernet receiver is simply a filter checking for collision detect=1 and destination equal to broadcast or the node's own address. Received packets are sent to higher layer protocols as they come in.
+The Feathernet receiver is simply a filter checking for collision detect=1 and destination equal to broadcast or the node's own address. Valid received packets are sent to higher layer protocols as they come in, unmodified.
 
 #### Transmitter
 
 ![LL Transmitter](Screenshots/LLTrans.png)
 
-TODO: new priority queue
+TODO: replace the one input fifo with a priority queue in case multiple modules try to transmit at once. FCP first, then Ping, then one or two "user" slots
 
-The Feathernet Tramsitter manages sending packets out onto the bus. Incoming packets (from higher layer circuits) are queued in a small FIFO memory, and transmitted by the collision-detection state machine. The Transmitter also contains the RNG, which is provided as an output for other modules to use as required. The Status line will have signal-blue set while the Transmitter is holding a packet which has not yet been transmitted.
-
-##### RNG
-
-TODO: LCG is gone. is the new random selector/shifter worth describing?
+The Feathernet Tramsitter manages sending packets out onto the bus. Incoming packets (from higher layer circuits) are queued in a small FIFO memory, and transmitted by the collision-detection state machine. The Transmitter also contains the RNG, which is provided as an output for other modules to use as required.
 
 ### Factorio - Protocol Layers
 
@@ -253,27 +248,52 @@ TODO: LCG is gone. is the new random selector/shifter worth describing?
 
 FCP allows nodes to self-configure unique addresses. For non-IP networks, the link layer and FCP modules are sufficient to provide basic networking, using Native Signals framing or other framing specified elsewhere.
 
-Autoconfiguration must be triggered manually once the circuits have been constructed by pressing the Start AutoConf button. The module will then perform FCP autoconfig as described above, and provide the selected address to the receiver. Additionally, the FCP module provides red(unconfigured)/yellow(autoconf in progress)/green(autoconf completed) signals on the status line to indicate address selection state.
+The Neighbor Discovery (self) submodule will respond to a broadcast or unicast Solicit with an Advertise, to support Duplicate Address Detection for autoconfig.
+
+The Neighbor Discovery (others) submodule listens for Advertise messages from other nodes, and records the most recent received address with the Router/Map Transfer flags. These addresses are provided to the link-layer config line.
+
+The Autoconfiguration submodule performs address selection and Duplicate Address Detection broadcasts, and provides the selected address to the link-layer config line. Additionally, the FCP module provides red(unconfigured)/yellow(autoconf in progress)/green(autoconf completed) signals on the status line to indicate address selection state. Autoconfiguration must be triggered manually once the circuits have been constructed by pressing the Start AutoConf button.
+
+#### Map Transfer Modules
+
+![Map Transfer Request](Screenshots/MTRequest.png)
+
+The Map Transfer Request module will request and record the signal map from FeatherBridge (or other map provider) using the last received FCP Advertise address with the Map Transfer flag set. This is currently triggered manually.
+
+![Map Generator](Screenshots/MapGen.png)
+
+The Map Generator module assembles the signal map used in this document, for use with Map Transfer Sender.
+
+![Map Transfer Sender](Screenshots/MTSender.png)
+
+The Map Transfer Sender module sends (manually triggered) the generated map to a specified node (manually configure address, or connect config for last advertised bridge address). This is used once to complete FeatherBridge setup with a signal map, most nodes do not require this module.
 
 #### IPv6 Module
 
 ![IP Module](Screenshots/IP.png)
 
-The current IPv6 node supports recieving packets with up to five addresses: The link-local address, formed by fe80::/64 and the 32bit node identifier, The all-nodes broadcast address ff02::1, and up to three globally routable unicast addresses, formed by 64-96bit prefixes combined with the node identifier in the low 32 bits. Packets matching one of these addresses are forwarded to higher layer protocols, with white=NextHeader and grey=PayloadSize. TODO: are these meta signals still right? where is matched-address (A?)?
+The current IPv6 node supports recieving packets with up to five addresses: The link-local address, formed by fe80::/64 and the 32bit node identifier, The all-nodes broadcast address ff02::1, and up to three globally routable unicast addresses, formed by 64bit prefixes combined with the node identifier in the low 32 bits. Packets matching one of these addresses are forwarded to higher layer protocols, with quality-normal=NextHeader and quality-uncommon=PayloadSize added to the packet data. A check signal is also emitted on the metadata wire to signal a new packet, and Signal-A with the index of the matched address.
+
+| Signal-A | Address         |
+|----------|-----------------|
+|        1 | fe80::/64       |
+|        2 | ff02::1/128     |
+|      3-5 | Global Prefixes |
+
+Config Input Signals (more signals present not used here):
 
 |  Signal  | Configuation Value |
 |----------|--------------------|
-| signal-0 | Prefix             |
-| signal-1 | Prefix             |
-| signal-2 | Prefix             |
-| signal-P | Prefix Length      |
-| signal-T | Prefix Valid Time (ticks) |
-| signal-R | Router Link-Layer Address |
-| signal-H | Hop Limit          |
+| signal-0 | Prefix 3           |
+| signal-1 | Prefix 3           |
+| signal-2 | Prefix 4           |
+| signal-3 | Prefix 4           |
+| signal-4 | Prefix 5           |
+| signal-5 | Prefix 5           |
 
 #### ICMP Module
 
-![ICMP Module](Screenshots/ICMP.gif)
+![ICMP Module](Screenshots/ICMP.png)
 The current node supports ICMP Echo Request/Reply message, and will emit Replies to any received Requests. It also listens for Route Advertisements and will auto-configure global prefixes when received.
 
 #### UDP Module
