@@ -252,6 +252,16 @@ The Neighbor Discovery (others) submodule listens for Advertise messages from ot
 
 The Autoconfiguration submodule performs address selection and Duplicate Address Detection broadcasts, and provides the selected address to the link-layer config line. Additionally, the FCP module provides red(unconfigured)/yellow(autoconf in progress)/green(autoconf completed) signals on the status line to indicate address selection state. Autoconfiguration must be triggered manually once the circuits have been constructed by pressing the Start AutoConf button.
 
+#### Raw Signals Modules
+
+![Raw Receiver](Screenshots/RawRx.png)
+
+This module receives and holds the last frame sent to this node in Raw Signals mode.
+
+![Raw Transmitter](Screenshots/RawTx.png)
+
+This module can send arbitrary data in Raw Signals mode. There is a keypad for setting the destination and a constant combinator for payload data. Note that this module can also be used to send other protocols by including header signals in the data.
+
 #### Map Transfer Modules
 
 ![Map Transfer Request](Screenshots/MTRequest.png)
