@@ -220,8 +220,6 @@ Inside Factorio, the FeatherBridge combinator is simply connected to the main li
 
 FeatherBridge supports receiving and re-sharing a prepared signal map of 375 signals (1500 bytes) via Signal Map Transfer, which will be used when translating ordered data packets to/from external networks. FeatherBridge ignores (and does not send) the Extended Map message with header signal indexes, and only supports a single map (mapid=0), but other devices on the network may use other maps for non-IP traffic or for Signal List messages over IP.
 
-TODO: the list machine, list order choices etc...
-
 TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?
 
 ### Factorio - Feathernet Link Layer
@@ -291,35 +289,32 @@ Config Input Signals (more signals present not used here):
 | signal-4 | Prefix 5           |
 | signal-5 | Prefix 5           |
 
-#### ICMP Module
+#### IP Autoconfig Module
 
-![ICMP Module](Screenshots/ICMP.png)
-The current node supports ICMP Echo Request/Reply message, and will emit Replies to any received Requests. It also listens for Route Advertisements and will auto-configure global prefixes when received.
+![IP Autoconfig Module](Screenshots/IPAutoconfig.png)
 
-#### UDP Module
+This module listens for Route Advertisement messages and autoconfigures addresses in up to three advertised subnets. It also records the rDNS server and Hop Limit values.
+
+Config Output Signals:
+
+|  Signal  | Configuation Value |
+|----------|--------------------|
+| signal-H | Hop Limit          |
+| signal-0 | RA Prefix 1        |
+| signal-1 | RA Prefix 1        |
+| signal-2 | RA Prefix 2        |
+| signal-3 | RA Prefix 2        |
+| signal-4 | RA Prefix 3        |
+| signal-5 | RA Prefix 3        |
+
+#### Ping Reponder Module
+
+![Ping Responder Module](Screenshots/Ping.png)
+
+This module listens for a Ping sent to any of the addresses supported by the IPv6 module, and responds to it. Multicast will always be answered from the link-local address.
+
+#### UDP Listener Module
 
 ![UDP Listener Module](Screenshots/UDP.png)
 
-UDP ports can be connected to various devices taking circuit inputs. For demonstration purposes, I have connected a small graphical display and a small music player.
-
-##### Text Display
-
-TODO
-
-##### Graphical Display
-
-TODO: update this demo? maybe a ppm now too?
-
-The graphical display takes images in a headerless [pbm](http://netpbm.sourceforge.net/doc/pbm.html). Small images (32 * 38 - height could be increased to by configuring additional rows of lamps) can be sent with a command such as `convert image.png pbm:-|cut -d$'\n' -f 3 | nc -6uvv  2001:DB8::cc9:dd27 1234`, with appropriate address/port.
-
-##### Music Player
-
-TODO: update this demo. maybe hook up the miditorio machine to play real midis?
-
-The music player takes a series of 32bit words each containing 5 consecutive 6 bit notes to play.
-
-| Reserved | Note1 | Note2 | Note3 | Note4 | Note5 |
-|----------|-------|-------|-------|-------|-------|
-| two high bits always 00 | six bits 0-64 | six bits 0-64 | six bits 0-64 | six bits 0-64 | six bits 0-64 |
-
-For each incoming packet, the payload data is played sequentially, one note every other tick, starting with the high-order note in each signal and advancing to the next signal after the lower-order note. After the last signal in a packet, the next buffered packet is played immediately. The note values are sent to a programmable speaker set to Piano, pitch is value.
+This module listens on a single UDP port and holds the last received packet
