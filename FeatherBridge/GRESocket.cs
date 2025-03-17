@@ -58,10 +58,19 @@ namespace FeatherBridge
                     {
                         case 0x86dd:
                                     // ip payload size        + header + gre header
-                            size = ((span[4] << 8) | span[5]) + 40     + 4 ;
-                            if (size % 4 != 0)
+                            var ipsize = ((span[4] << 8) | span[5]) + 40     + 4 ;
+                            if ((ipsize & 0x3) != 0)
                             {
-                                size = size + 4 - (size % 4);
+                                ipsize = (ipsize & ~3) + 4;
+                            }
+
+                            if (ipsize >= size)
+                            {
+                                size = ipsize;
+                            }
+                            else
+                            {
+                                Console.WriteLine($"invalid ipsize! {ipsize} {size}");
                             }
 
                             break;
