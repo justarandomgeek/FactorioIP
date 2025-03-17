@@ -62,6 +62,7 @@ while (true)
                 {
                     outs.Add(new byte[4 - (packet.data.Length % 4)]);
                 }
+                outs.Add(new byte[2]{ 0xA5, 0xA5 }); // bodge bytes to prevent/detect truncations
                 Console.WriteLine($"GRE: type {packet.ethertype:X4} size {packet.data.Length}");
                 count++;
             }

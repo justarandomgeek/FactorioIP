@@ -320,7 +320,7 @@ commands.add_command("FBtraff", "", function(param)
       local nbuff = #buff+1
       buff[nbuff] = packet
       if nbuff > 20 then break end -- too may packets waiting already, just drop the rest...
-      i = j
+      i = j + 2 -- skip two bodge bytes that keep end whitespace getting trimmed
     until i >= #data
   end
   -- send packets
