@@ -45,50 +45,60 @@ namespace FeatherBridge
 
         public int ReceiveWaiting => packetsIn.Count;
 
+        private void SendOnePacket(Packet p)
+        {
+            var span = p.data.Span;
+            var size = p.data.Length + 4;
+
+            switch (p.ethertype)
+            {
+                case 0x86dd:
+                    if (span.Length < 40)
+                    {
+                        Console.WriteLine($"invalid span size! {span.Length} {size}");
+                        return;
+                    }
+                    // ip payload size        + header + gre header
+                    var ipsize = ((span[4] << 8) | span[5]) + 40 + 4;
+                    if ((ipsize & 0x3) != 0)
+                    {
+                        ipsize = (ipsize & ~3) + 4;
+                    }
+
+                    if (ipsize >= size)
+                    {
+                        size = ipsize;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"invalid ipsize! {ipsize} {size}");
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+
+            var dout = new byte[size];
+            dout[0] = 0; // flags
+            dout[1] = 0; // version
+
+            // ethertype
+            dout[2] = (byte)((p.ethertype >> 8) & 0xff);
+            dout[3] = (byte)(p.ethertype & 0xff);
+
+            // payload
+            p.data.CopyTo(new Memory<byte>(dout, 4, p.data.Length));
+            gresock.Send(dout);
+        }
+
         private void SendInternal()
         {
             while (true)
             {
                 while (packetsOut.TryDequeue(out Packet p))
                 {
-                    var span = p.data.Span;
-                    var size = p.data.Length + 4;
-
-                    switch (p.ethertype)
-                    {
-                        case 0x86dd:
-                                    // ip payload size        + header + gre header
-                            var ipsize = ((span[4] << 8) | span[5]) + 40     + 4 ;
-                            if ((ipsize & 0x3) != 0)
-                            {
-                                ipsize = (ipsize & ~3) + 4;
-                            }
-
-                            if (ipsize >= size)
-                            {
-                                size = ipsize;
-                            }
-                            else
-                            {
-                                Console.WriteLine($"invalid ipsize! {ipsize} {size}");
-                            }
-
-                            break;
-                        default:
-                            break;
-                    }
-
-                    var dout = new byte[size];
-                    dout[0] = 0; // flags
-                    dout[1] = 0; // version
-
-                    // ethertype
-                    dout[2] = (byte)((p.ethertype >> 8) & 0xff);
-                    dout[3] = (byte)(p.ethertype & 0xff);
-
-                    // payload
-                    p.data.CopyTo(new Memory<byte>(dout, 4, p.data.Length));
-                    gresock.Send(dout);
+                    this.SendOnePacket(p);
                 }
                 Thread.Sleep(1);
             }
