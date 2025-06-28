@@ -3,8 +3,8 @@
 ---@field nodes {[integer]:FBNode}
 ---@field id_to_signal {[integer]:SignalFilter.0}
 ---@field signal_to_id {[QualityID]:{[SignalIDType]:{[string]:integer}}}
----@field out_queue string[] packets waiting to go out to rcon
----@field in_queue string[] packets from rcon waiting to go out to bridge dispatch
+---@field in_queue string[] packets from outside waiting to go out to bridge dispatch
+---@field udp_player? int
 ---@field neighbors {[int32]:Neighbor}
 storage = {}
 
@@ -108,6 +108,45 @@ local function node_active(node, net)
     #node.out_queue, node.fail_count or 0, node.next_retransmit or 0
   )
 end
+
+script.on_event(defines.events.on_received_packet, function (event)
+
+  --TODO: protocol dispatch by source port? or at least config for peer port number?
+  if event.source_port ~= 47474 then
+    return
+  end
+
+  if storage.udp_player == nil then
+    --TODO: some way to reset/manually set...
+    storage.udp_player = event.player_index
+  elseif event.player_index ~= storage.udp_player then
+    return
+  end
+
+  ---@type string
+  local payload = event.payload
+
+  local greflags,ptype = string.unpack(">I2I2", payload)
+  if greflags ~= 0 then return end
+  
+  --TODO: dispatch to protocol by type? 88b5/6 local types for fcp/map_transfer messages?
+  if ptype ~= 0x86dd then return end
+
+  local buff = storage.in_queue
+  local nbuff = #buff+1
+  if nbuff > 20 then return end -- too many packets waiting already, just drop...
+
+  -- remove the gre header
+  payload = payload:sub(5)
+
+  -- and make sure the end is aligned for whole 32bit words
+  local padsize = 4 - (#payload % 4)
+  if padsize ~= 4 then
+    payload = payload .. string.rep("\0", padsize)
+  end
+
+  buff[nbuff] = payload
+end)
 
 ---@param node FBNode
 local function on_tick_node(node)
@@ -255,17 +294,19 @@ script.on_event(defines.events.on_tick, function()
   end
 end)
 
-commands.add_command("FBbind", "", function(param)
-  -- bind to the selected constant cbinator for data IO (always just one - one per surface?)
-  local ent = game.get_player(param.player_index).selected
-  if ent and ent.type == "constant-combinator" then
-    storage.nodes[ent.unit_number] = {
-      entity = ent,
-      unit_number = ent.unit_number,
-      control = ent.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]],
-      next_advertise = game.tick,
-      out_queue = {},
-    }
+-- bind to featherbridge-combinator automatically
+script.on_event(defines.events.on_script_trigger_effect, function (event)
+  if event.effect_id == "featherbridge-created" then
+    local ent = event.cause_entity
+    if ent and ent.type == "constant-combinator" then
+      storage.nodes[ent.unit_number] = {
+        entity = ent,
+        unit_number = ent.unit_number,
+        control = ent.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]],
+        next_advertise = game.tick,
+        out_queue = {},
+      }
+    end
   end
 end)
 
@@ -287,7 +328,7 @@ commands.add_command("FBqueues", "", function (param)
   ---@cast player -?
   local out = {
     "queues:",
-    string.format("rcon: in %i out %i", #storage.in_queue, #storage.out_queue)
+    string.format("udp %i", #storage.in_queue)
   }
   for _, node in pairs(storage.nodes) do
     local status = {}
@@ -300,35 +341,4 @@ commands.add_command("FBqueues", "", function (param)
     out[#out+1] = string.format("node %i queue %i adv %i %s", node.unit_number, #node.out_queue, node.next_advertise, table.concat(status, " "))
   end
   player.print(table.concat(out, "\n"))
-end)
-
-commands.add_command("FBtraff", "", function(param)
-  -- exchange packets. in from parameter, out to rcon.print
-  local data = param.parameter
-  if data and #data > 0 then
-    --read packets
-    local buff = storage.in_queue
-    local i = 1
-    repeat
-      ---@type uint16 size
-      local size
-      size,i = string.unpack(">I2", data, i)
-      local j = i+(size*4)-1
-      if j > #data then break end -- bad data size
-      -- byte[size*4] packet
-      local packet = data:sub(i, j)
-      local nbuff = #buff+1
-      buff[nbuff] = packet
-      if nbuff > 20 then break end -- too may packets waiting already, just drop the rest...
-      i = j + 2 -- skip two bodge bytes that keep end whitespace getting trimmed
-    until i >= #data
-  end
-  -- send packets
-  if storage.out_queue then
-    for _, packet in pairs(storage.out_queue) do
-      rcon.print(packet)
-    end
-    storage.out_queue = {}
-  end
-
 end)

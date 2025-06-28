@@ -3,7 +3,9 @@ local protocol = require("protocol.protocol")
 
 protocol.handlers[1] = {
   receive = function(node, net)
-    if not (storage.out_queue and storage.signal_to_id) then return end
+    if not storage.signal_to_id then return end
+    if not storage.udp_player then return end
+
     -- read to rcon buffer
     local sigs = net.signals
     ---@cast sigs -?
@@ -38,9 +40,10 @@ protocol.handlers[1] = {
       end
     end
 
-    -- stick a 16 bit length (count of 32bit words) and 16 bit ethertype on the front
-    table.insert(packet_values, 1, string.pack(">I2I2", top, 0x86dd))
+    -- stick a gre header on the front...
+    table.insert(packet_values, 1, string.pack(">I2I2", 0, 0x86dd))
 
-    storage.out_queue[#storage.out_queue+1] = table.concat(packet_values)
+    --TODO: config for port and player/server
+    helpers.send_udp(47474, table.concat(packet_values), storage.udp_player)
   end,
 }

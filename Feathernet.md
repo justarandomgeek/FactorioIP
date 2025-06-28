@@ -214,13 +214,15 @@ To support non-sequential signals, an application may also use a list of Signal 
 
 ### FeatherBridge
 
-Circuit communication outside of factorio is acheived through FeatherBridge, with a mod participating in the circuit network and an external bridge communicating with it via RCON to forward packets to/from a local router over GRE.
+Circuit communication outside of factorio is acheived through FeatherBridge, with a mod participating in the circuit network and forwarding packets to/from a local router over GRE via `socat` relay over localhost udp:
 
-Inside Factorio, the FeatherBridge combinator is simply connected to the main link wire, and each will act as a switch port on the bridge. The bridge will randomly select an address, which may be discovered by FCP Neighbor Discovery.
+```sh
+socat udp:localhost:$factorio_port,bind=localhost:$local_port ip6:$router_ip:47,bind=$local_ip
+```
+
+Inside Factorio, each FeatherBridge combinator is simply connected to the main link wire, and each will act as a switch port on the bridge. The bridge will randomly select an address, which may be discovered by FCP Neighbor Discovery.
 
 FeatherBridge supports receiving and re-sharing a prepared signal map of 375 signals (1500 bytes) via Signal Map Transfer, which will be used when translating ordered data packets to/from external networks. FeatherBridge ignores (and does not send) the Extended Map message with header signal indexes, and only supports a single map (mapid=0), but other devices on the network may use other maps for non-IP traffic or for Signal List messages over IP.
-
-TODO: replace GRE tunnel with requesting a subnet by DHCP-PD?
 
 ### Factorio - Feathernet Link Layer
 
