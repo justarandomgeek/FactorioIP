@@ -1,28 +1,27 @@
 local protocol = require("protocol.protocol")
-local bridge = require("protocol.bridge")
+local bridge = require("bridge")
 
 -- map request
 protocol.handlers[3] = {
-  receive = function(node, net, bcast)
-    if bcast then return end
+  dispatch = function(packet)
+    if packet.dest_addr == 0 then return end
 
-    local mapid = net.get_signal({type="entity", name="item-request-proxy"})
+    local mapid = protocol.find_signal(packet.payload, {type="entity", name="item-request-proxy"})
     if mapid ~= 0 then return end
 
-    local dest_addr = net.get_signal({type="entity", name="entity-ghost"})
-
     ---@type LogisticFilter[]
-    local map_out = {
-      protocol.signal_value(protocol.signals.collision, 1),
-      protocol.signal_value(protocol.signals.protoid, 4),
-      protocol.signal_value(protocol.signals.dest_addr, dest_addr),
-    }
+    local map_out = {}
 
     for i, signal in pairs(storage.id_to_signal) do
       map_out[#map_out+1] = protocol.signal_value(signal, i)
     end
 
-    bridge.send({ dest_addr = dest_addr, retry_count = 4, payload = map_out })
+    bridge.send({
+      proto = 4,
+      src_addr = storage.address,
+      dest_addr = packet.src_addr,
+      retry_count = 4,
+      payload = map_out }, storage.router)
   end,
 }
 
@@ -33,7 +32,8 @@ local map_skip_list = {
     virtual = {
       ["signal-check"] = true,
       ["signal-info"] = true,
-      ["signal-dot"] = true,
+      ["signal-input"] = true,
+      ["signal-output"] = true,
     },
     entity = {
       ["item-request-proxy"] = true,
@@ -54,22 +54,19 @@ end
 
 -- map transfer
 protocol.handlers[4] = {
-  receive = function(node, net, bcast)
-    if bcast then return end
+  dispatch = function(packet)
+    if packet.dest_addr == 0 then return end
 
-    local mapid = net.get_signal({type="entity", name="item-request-proxy"})
+    local mapid = protocol.find_signal(packet.payload, {type="entity", name="item-request-proxy"})
     if mapid ~= 0 then return end
 
     -- load new map
-    local captured = net.signals
-    if not captured then return end
-
     local by_value = {}
-    for _, signal in pairs(captured) do
-      if map_skip(signal.signal) then goto skip end
-      local c = signal.count
+    for _, signal in pairs(packet.payload) do
+      if map_skip(signal.value --[[@as SignalID]]) then goto skip end
+      local c = signal.min ---@cast c -?
       if not by_value[c] then by_value[c] = {} end
-      by_value[c][#by_value[c]+1] = signal.signal
+      by_value[c][#by_value[c]+1] = signal.value
       ::skip::
     end
 

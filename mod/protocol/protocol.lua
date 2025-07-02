@@ -1,11 +1,10 @@
 
 ---@class FBProtocol
----@field receive fun(node:FBNode, net:LuaCircuitNetwork, bcast?:boolean)
----@field forward? fun(node:FBNode, net:LuaCircuitNetwork)
+---@field dispatch fun(packet:QueuedPacket) # handle a packet dispatched from the switch to the Router port
 
 ---@class FBProtocolLib
 return {
----@type {[string]:SignalFilter}
+---@type {[string]:SignalID}
   signals = {
     collision = {
         type = "virtual",
@@ -17,10 +16,15 @@ return {
     },
     dest_addr = {
         type = "virtual",
-        name = "signal-dot"
+        name = "signal-input"
+    },
+    src_addr = {
+        type = "virtual",
+        name = "signal-output"
     },
   },
-  ---@param signal SignalFilter
+
+  ---@param signal SignalID
   ---@param value int32
   ---@return LogisticFilter
   signal_value = function(signal, value)
@@ -34,6 +38,23 @@ return {
       min = value,
     }
   end,
+
+
+  ---@param payload LogisticFilter[]
+  ---@param signal SignalID
+  ---@return int32
+  find_signal = function (payload, signal)
+    for _, filter in pairs(payload) do
+      local sig = filter.value ---@cast sig -?
+      if (sig.quality or "normal") == (signal.quality or "normal") and
+          (sig.type or "item") == (signal.type or "item") and
+          sig.name == signal.name then
+        return filter.min
+      end
+    end
+    return 0
+  end,
+
   ---@type {[int32]:FBProtocol}
   handlers = {
 

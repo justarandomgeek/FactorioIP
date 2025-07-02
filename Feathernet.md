@@ -1,17 +1,18 @@
 ﻿
 # Feathernet: Autoconfigured Native and IPv6 Networking over Factorio Circuit Networks
 
-Feathernet is a protocol (and implementation) for transmitting packet based data (native Factorio signals, or IP packets) between many nodes over a single shared wire.
+Feathernet is a protocol (and implementation) for transmitting packet based data (native Factorio signals, or IP packets) between many nodes over a single shared wire. FeatherBridge extends this with a link-layer switch operating across surfaces, between worlds, and to/from an IP network.
 
 ## Packet Structure
 
-|  Signal      | Fields                    | Notes       |
-|--------------|---------------------------|-------------|
-| signal-check | Collision Detection       | always=1    |
-| signal-dot   | Destination Address       | 0=Broadcast |
-| signal-info  | Protocol Type             |             |
+|  Signal       | Fields                    | Notes       |
+|---------------|---------------------------|-------------|
+| signal-check  | Collision Detection       | always=1    |
+| signal-info   | Protocol Type             |             |
+| signal-output | Source Address            |             |
+| signal-input  | Destination Address       | 0=Broadcast |
 
-The primary Feathernet header is located on `signal-check`, `signal-dot`, and `signal-info`, in order to leave free as many signals as possible for raw-signal mode. Specifically, These were chosen to avoid vanilla color and alphanumeric signals to allow for lamp and display panel based display messages, as well as avoiding item and fluid signals to allow transmission of logistic network reports or requests without the need for additional filtering or transformation.
+The primary Feathernet header is located on `signal-check`, `signal-info`, `signal-output`, and `signal-input`, in order to leave free as many signals as possible for raw-signal mode. Specifically, These were chosen to avoid vanilla color and alphanumeric signals to allow for lamp and display panel based display messages, as well as avoiding item and fluid signals to allow transmission of logistic network reports or requests without the need for additional filtering or transformation.
 
 Collision detection is achieved by the use of a canary signal on `signal-check`. This signal MUST be set to 1 on all transmitted messages. A receiving node MUST discard any messages received with values other than 1, or report them to higher layers as errors.
 
@@ -68,7 +69,46 @@ Flags:
 | 0x00000001 | Router                         |
 | 0x00000002 | Supports Signal Map Transfer   |
 
-A Router node will forward frames to other known links, including external networks.
+A Router node supports forwarding traffic to ordered-data networks (such as IP).
+
+## FeatherBridge Peering
+
+FeatherBridge switches on games running on the same PC may peer with each other and exchange packets directly. All messages between peers begin with a one byte message-type.
+
+| type | Mesage Type      |
+|------|------------------|
+|    1 | Raw Signal Data  |
+
+TODO: packed FCP message? peer liveness checks/loop check?
+
+### Raw Signal Data
+
+Carries any packet not covered by a dedicated packed format
+
+| type   | Field                |
+|--------|----------------------|
+| uint8  | Message Type = 0x01  |
+| int32  | Protocol ID          |
+| int32  | Source Address       |
+| int32  | Dest Address         |
+| uint8  | Num Quality Sections |
+
+Quality Section Header:
+
+| type     | Field         |
+|----------|---------------|
+| string8  | Quality Name  |
+| int24    | Num Signals   |
+
+Signal Entry:
+
+| type     | Field       |
+|----------|-------------|
+| uint8    | Type (enum) |
+| string8  | Name        |
+| int32    | Value       |
+
+string8 = string prefixed by uint8 length (lua pack type `s1`)
 
 ## Signal Map Transfer
 
@@ -79,7 +119,6 @@ To support protocols that require an ordered stream of data (such as IP), an ord
 |  Signal      | Fields                     |
 |--------------|----------------------------|
 | signal-info  | Protocol ID = 3            |
-| entity/entity-ghost | Requester's address |
 | entity/item-request-proxy  | Map ID       |
 
 This should be sent unicast to a host that has previously advertised the capability.
@@ -95,14 +134,15 @@ All signals not reserved by this header or the Feathernet header contain their o
 
 ### Extended Map Transfer
 
-|  Signal      | Fields                    |
-|--------------|---------------------------|
-| signal-info  | Protocol ID = 5           |
-| entity/item-request-proxy  | Map ID      |
-| index 0      | Index for (collision)     |
-| index 1      | Index for (protocol)      |
-| index 2      | Index for (dest address)  |
-| index 3      | Index for (MapID)         |
+|  Signal      | Fields                      |
+|--------------|-----------------------------|
+| signal-info  | Protocol ID = 5             |
+| entity/item-request-proxy  | Map ID        |
+| index 0      | Index for (collision)       |
+| index 1      | Index for (protocol)        |
+| index 2      | Index for (source address)  |
+| index 3      | Index for (dest address)    |
+| index 4      | Index for (MapID)           |
 
 If a map provider wishes to include indexes for the reserved header signals, they can be provided as a second message, using the indexes in the first.
 
@@ -163,7 +203,7 @@ Length is in pairs of signals (8 bytes)
 
 * source link layer
   * type = 1
-  * openwrt puts useless info in this for gre-over-v6 tunnel (top 6 bytes of outer address), so ignore it?
+  * openwrt puts useless info in this for gre-over-v6 tunnel (top 6 bytes of outer address), so ignore it; just use the actual link-layer source.
 * prefix information
   * type = 3
   * 0 = type:length:prefixlen8:L1:A1:reserved

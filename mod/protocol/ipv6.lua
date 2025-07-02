@@ -1,23 +1,18 @@
 local protocol = require("protocol.protocol")
 
+local ipv6 = {}
 
 protocol.handlers[1] = {
-  receive = function(node, net)
-    if not storage.signal_to_id then return end
-    if not storage.udp_player then return end
-
-    -- read to rcon buffer
-    local sigs = net.signals
-    ---@cast sigs -?
-
+  dispatch = function(packet)
     local map = storage.signal_to_id
+    if not map then return end
 
     local packet_values = {}
     packet_values[400] = nil
     local top = 0
 
-    for _, sig in pairs(sigs) do
-      local signal = sig.signal
+    for _, sig in pairs(packet.payload) do
+      local signal = sig.value ---@cast signal -?
       local qmap = map[signal.quality or "normal"]
       if not qmap then goto continue end
 
@@ -27,7 +22,7 @@ protocol.handlers[1] = {
       local id = tmap[signal.name]
       if not id then goto continue end
 
-      packet_values[id] = string.pack(">i4", sig.count)
+      packet_values[id] = string.pack(">i4", sig.min)
       if id > top then top = id end
       ::continue::
     end
@@ -43,7 +38,41 @@ protocol.handlers[1] = {
     -- stick a gre header on the front...
     table.insert(packet_values, 1, string.pack(">I2I2", 0, 0x86dd))
 
-    --TODO: config for port and player/server
-    helpers.send_udp(47474, table.concat(packet_values), storage.udp_player)
+    helpers.send_udp(storage.router.port, table.concat(packet_values), storage.router.player)
   end,
 }
+
+---@param packet string
+---@return QueuedPacket packet
+function ipv6.parse(packet)
+  ---@type LogisticFilter[]
+  local filters = {}
+  -- pre-allocate...
+  filters[400] = nil
+
+  --dest address...
+  local addrtype,dest = string.unpack(">Bxxxxxxxxxxxi4", packet, 25)
+  ---@cast addrtype uint8
+  ---@cast dest int32
+  -- 0 for multicast traffic, low 32bits of dest ip for unicast
+  if addrtype == 0xff then
+    dest = 0
+  end
+  
+  local len = #packet
+  
+  for i = 1,len,4 do
+    local n = string.unpack(">i4", packet, i)
+    local sig = storage.id_to_signal[((i-1)/4)+1]
+    filters[#filters+1] = protocol.signal_value(sig, n)
+  end
+  return {
+    proto = 1,
+    src_addr = storage.address,
+    dest_addr = dest,
+    retry_count = 4,
+    payload = filters,
+  }
+end
+
+return ipv6

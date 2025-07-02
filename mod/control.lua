@@ -1,287 +1,74 @@
 ---@class (exact) FBStorage
----@field address int32 one address for the whole bridge - used as link layer dest for traffic to forward to external
----@field nodes {[integer]:FBNode}
----@field id_to_signal {[integer]:SignalFilter.0}
+---@field address int32 router address
+---@field router FBRouterPort?
+---@field id_to_signal {[integer]:SignalID}
 ---@field signal_to_id {[QualityID]:{[SignalIDType]:{[string]:integer}}}
----@field in_queue string[] packets from outside waiting to go out to bridge dispatch
----@field udp_player? int
+---@field peers FBPeerPort[]
+---@field remote_ports {[integer]:{[int16]:FBRemotePort}} map player->port->Port for dispatching received udp packets
+---@field nodes {[integer]:FBCombinatorPort}
 ---@field neighbors {[int32]:Neighbor}
 storage = {}
 
 ---@class (exact) QueuedPacket
 ---@field retry_count int32? # if non-nil, retry and decrement until 0 or txgood
+---@field proto int32
+---@field src_addr int32
 ---@field dest_addr int32
 ---@field payload LogisticFilter[]
 
----@class (exact) Neighbor
----@field bridge_port FBNode? # known port if any
----@field address int32 # neighbor's link layer address
----@field last_seen int32 # tick last seen advertise
----@field last_solicit int32 # tick last sent (queued) solicit
+---@class (exact) FBRemotePort
+---@field public type "router"|"peer"
+---@field public port uint16
+---@field public player integer
+---@field public on_received_packet fun(port:FBRemotePort, packet:string)
 
----@class (exact) FBNode
----@field entity LuaEntity
----@field unit_number integer
----@field control LuaConstantCombinatorControlBehavior
----@field next_advertise integer # send periodic unsolicited advertise
----@field did_tx_last_tick boolean?
----@field fail_count number?
----@field next_retransmit number?
----@field out_queue QueuedPacket[] # packets waiting to go out to circit
+local bridge = require("bridge")
 
-local protocol = require("protocol.protocol")
-require("protocol.ipv6")
-local fcp = require("protocol.fcp")
-local bridge = require("protocol.bridge")
-require("protocol.map_transfer")
-
----@param packet string
----@return LogisticFilter[] payload
----@return int32 dest_addr
-local function packet_to_filters(packet)
-  ---@type LogisticFilter[]
-  local filters = {
-    protocol.signal_value(protocol.signals.collision, 1),
-    protocol.signal_value(protocol.signals.protoid, 1),
-  }
-  -- pre-allocate...
-  filters[400] = nil
-
-  --dest address...
-  local addrtype,dest = string.unpack(">Bxxxxxxxxxxxi4", packet, 25)
-  ---@cast addrtype uint8
-  ---@cast dest int32
-  -- 0 for multicast traffic, low 32bits of dest ip for unicast
-  if addrtype == 0xff then
-    dest = 0
-  end
-  filters[#filters+1] = protocol.signal_value(protocol.signals.dest_addr, dest)
-
-  local len = #packet
-  
-  for i = 1,len,4 do
-    local n = string.unpack(">i4", packet, i)
-    local sig = storage.id_to_signal[((i-1)/4)+1]
-    filters[#filters+1] = protocol.signal_value(sig, n)
-  end
-  return filters,dest
-end
-
-
----@param node FBNode
----@param reason string
-local function node_disabled(node, reason)
-  local entity = node.entity
-  node.control.enabled = false
-  entity.custom_status = {
-    diode = defines.entity_status_diode.red,
-    label = string.format("Disabled: %s", reason)
-  }
-  --TODO: locale all these string.formats
-  entity.combinator_description = string.format("FeatherBridge %8X\nDisabled: %s", bit32.band(storage.address), reason)
-end
-
-
-local wire_tag = {
-  [defines.wire_type.red] = "[img=item/red-wire]",
-  [defines.wire_type.green] = "[img=item/green-wire]",
+local ports = {
+  combinator = require("ports.combinator"),
+  peer = require("ports.peer"),
+  router = require("ports.router"),
 }
-
----@param node FBNode
----@param net LuaCircuitNetwork
-local function node_active(node, net)
-  local entity = node.entity
-  if node.fail_count then
-    entity.custom_status = {
-      diode = defines.entity_status_diode.yellow,
-      label = "Waiting to Retransmit"
-    }
-  else
-    entity.custom_status = {
-      diode = defines.entity_status_diode.green,
-      label = "Ready"
-    }
-  end
-  entity.combinator_description = string.format(
-    "FeatherBridge %8X on %s%i\nqueue:%i fail:%i retry:%i",
-    bit32.band(storage.address), wire_tag[net.wire_type], net.network_id,
-    #node.out_queue, node.fail_count or 0, node.next_retransmit or 0
-  )
-end
-
 script.on_event(defines.events.on_received_packet, function (event)
-
-  --TODO: protocol dispatch by source port? or at least config for peer port number?
-  if event.source_port ~= 47474 then
-    return
-  end
-
-  if storage.udp_player == nil then
-    --TODO: some way to reset/manually set...
-    storage.udp_player = event.player_index
-  elseif event.player_index ~= storage.udp_player then
-    return
-  end
+  local player_ports = storage.remote_ports[event.player_index]
+  if not player_ports then return end
+  local port = player_ports[event.source_port]
+  if not port then return end
 
   ---@type string
   local payload = event.payload
-
-  local greflags,ptype = string.unpack(">I2I2", payload)
-  if greflags ~= 0 then return end
-  
-  --TODO: dispatch to protocol by type? 88b5/6 local types for fcp/map_transfer messages?
-  if ptype ~= 0x86dd then return end
-
-  local buff = storage.in_queue
-  local nbuff = #buff+1
-  if nbuff > 20 then return end -- too many packets waiting already, just drop...
-
-  -- remove the gre header
-  payload = payload:sub(5)
-
-  -- and make sure the end is aligned for whole 32bit words
-  local padsize = 4 - (#payload % 4)
-  if padsize ~= 4 then
-    payload = payload .. string.rep("\0", padsize)
-  end
-
-  buff[nbuff] = payload
+  port:on_received_packet(payload)
 end)
 
----@param node FBNode
-local function on_tick_node(node)
-  local entity = node.entity
-
-  ---@type LuaCircuitNetwork?
-  local net
-  do
-    local rnet = entity.get_circuit_network(defines.wire_connector_id.circuit_red)
-    local gnet = entity.get_circuit_network(defines.wire_connector_id.circuit_green)
-
-    if rnet and gnet then
-      node_disabled(node, string.format("Multiple Circuit Connections [img=item/red-wire]%i [img=item/green-wire]%i", rnet.network_id, gnet.network_id))
-      return
-    end
-    net = rnet or gnet
-
-    if not net then
-      node_disabled(node, "No Circuit Connection")
-      return
-    end
-  end
-
-  -- read collision check signal
-  local col = net.get_signal(protocol.signals.collision --[[@as SignalID]])
-
-  if node.did_tx_last_tick then
-    node.did_tx_last_tick = nil
-    node.control.enabled = false
-    if (col == nil or col == 1) then
-      -- tx ok
-      table.remove(node.out_queue, 1)
-      node.fail_count = nil
-      node.next_retransmit = nil
-    else
-      -- tx fail
-      local pending = node.out_queue[1]
-      local retry = true
-      if pending.retry_count then
-        pending.retry_count = pending.retry_count - 1
-        if pending.retry_count <= 0 then
-          retry = false
-        end
-      else
-        retry = false
-      end
-
-      if retry then
-        -- set retry delay
-        local fail_count = (node.fail_count or 0) + 1
-        node.fail_count = fail_count
-        node.next_retransmit = math.random(2^(fail_count), 2^(fail_count+2))
-      else
-        -- drop
-        table.remove(node.out_queue, 1)
-        node.fail_count = nil
-        node.next_retransmit = nil
-      end
-    end
-  else
-    if col == 1 then -- got someone else's tx!
-      local addr = net.get_signal(protocol.signals.dest_addr --[[@as SignalID]])
-      local protoid = net.get_signal(protocol.signals.protoid --[[@as SignalID]])
-      local proto = protocol.handlers[protoid]
-      if addr == storage.address or addr == 0 then
-        if proto and proto.receive then
-          proto.receive(node, net, addr == 0)
-        end
-      else
-        if proto and proto.forward then
-          proto.forward(node, net)
-        end
-      end
-      if addr ~= storage.address then
-        --forward it, to specific queue if known, or to all + ND if not
-        bridge.forward(node, net, addr)
-      end
-    end
-
-    -- do tx activity...
-    if node.next_retransmit then
-      if node.next_retransmit <= 1 then
-        node.next_retransmit = nil
-      else
-        node.next_retransmit = node.next_retransmit - 1
-      end
-    else
-      local filters = node.out_queue[1]
-      if filters then
-        -- try tx...
-        node.did_tx_last_tick = true
-        node.control.sections[1].filters = filters.payload
-        node.control.enabled = true
-      end
-    end
-  end
-
-  node_active(node, net)
-end
-
 script.on_nth_tick(30*60, function(e)
-  bridge.broadcast({
-    dest_addr = 0,
-    payload = fcp.advertise(storage.address)
-  })
+  local router = storage.router
+  if router then
+    router:periodic()
+  end
 end)
 
 script.on_init(function()
   storage = {
-    address = math.random(1,0x7fffffff),
+    address = math.random(0x10000,0x7fffffff),
     nodes = {},
     id_to_signal = {},
     signal_to_id = {},
-    out_queue = {},
-    in_queue = {},
     neighbors = {},
+    peers = {},
+    remote_ports = {},
   }
 end)
 
 script.on_event(defines.events.on_tick, function()
-  --dispatch one frame (or more?) from storage.in_queue before processing nodes...
-  local packet = storage.in_queue[1]
-  if packet then
-    local filters,dest_addr = packet_to_filters(packet)
-    bridge.send({
-      dest_addr = dest_addr,
-      retry_count = 4,
-      payload = filters,
-    })
-    table.remove(storage.in_queue, 1)
+  for player_id, player_ports in pairs(storage.remote_ports) do
+    if next(player_ports) then
+      helpers.recv_udp(player_id)
+    end
   end
 
   for _,node in pairs(storage.nodes) do
-    if node.entity.valid then
-      on_tick_node(node)
+    if node:valid() then
+      node:on_tick()
     else
       for _, neigh in pairs(storage.neighbors) do
         if neigh.bridge_port == node then
@@ -294,51 +81,135 @@ script.on_event(defines.events.on_tick, function()
   end
 end)
 
--- bind to featherbridge-combinator automatically
 script.on_event(defines.events.on_script_trigger_effect, function (event)
   if event.effect_id == "featherbridge-created" then
     local ent = event.cause_entity
     if ent and ent.type == "constant-combinator" then
-      storage.nodes[ent.unit_number] = {
-        entity = ent,
-        unit_number = ent.unit_number,
-        control = ent.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]],
-        next_advertise = game.tick,
-        out_queue = {},
-      }
+      storage.nodes[ent.unit_number] = ports.combinator(ent)
     end
   end
 end)
 
-commands.add_command("FBneighbors", "", function (param)
+commands.add_command("FBstatus", "", function (param)
   local player = game.get_player(param.player_index)
   ---@cast player -?
   local out = {
-    "neighbors:",
+    string.format("address %8X", storage.address),
   }
-  for _, neighbor in pairs(storage.neighbors) do
-    local port = neighbor.bridge_port and neighbor.bridge_port.unit_number or 0
-    out[#out+1] = string.format("addr %8X port %i last_seen %i last_solicit %i", bit32.band(neighbor.address), port, neighbor.last_seen, neighbor.last_solicit)
+  if storage.router then
+    out[#out+1] = string.format("router %i:%i", storage.router.player, storage.router.port)
   end
-  player.print(table.concat(out, "\n"))
-end)
+  for _, peer in pairs(storage.peers) do
+    out[#out+1] = string.format("peer %i:%i", peer.player, peer.port)
+  end
 
-commands.add_command("FBqueues", "", function (param)
-  local player = game.get_player(param.player_index)
-  ---@cast player -?
-  local out = {
-    "queues:",
-    string.format("udp %i", #storage.in_queue)
-  }
+  out[#out+1] = "\nqueues:"
   for _, node in pairs(storage.nodes) do
-    local status = {}
-    if node.did_tx_last_tick then
-      status[#status+1] = "did_tx"
-    end
-    if node.fail_count then
-      status[#status+1] = string.format("fail %i retrans %i", node.fail_count, node.next_retransmit)
-    end
-    out[#out+1] = string.format("node %i queue %i adv %i %s", node.unit_number, #node.out_queue, node.next_advertise, table.concat(status, " "))
+    out[#out+1] = node:queues()
+  end
+
+  out[#out+1] = "\nneighbors:"
+  for _, neighbor in pairs(storage.neighbors) do
+    local port = neighbor.bridge_port and neighbor.bridge_port:label() or "-"
+    out[#out+1] = string.format("addr %8X port %s last_seen %i", bit32.band(neighbor.address), port, neighbor.last_seen)
   end
   player.print(table.concat(out, "\n"))
+end)
+
+---@param parameter string
+---@return integer?
+---@return integer?
+local function parse_player_and_port(parameter)
+  if not parameter then return end
+  local player,port = string.match(parameter, "(%d+) (%d+)")
+  if not player then return end
+  ---@cast port -?
+  player = tonumber(player)
+  port = tonumber(port)
+  
+  if port < 0 or port > 65535 then return end
+  if not (player == 0 or game.get_player(player)) then return end
+
+  return player,port
+end
+
+commands.add_command("FBPeer", "", function (param)
+  local player,port = parse_player_and_port(param.parameter)
+  if not player then return end
+  ---@cast port -?
+
+  local rp = storage.remote_ports
+  local pl = rp[player]
+  if not pl then
+    pl = {}
+    rp[player] = pl
+  end
+  local oldpeer = pl[port]
+
+  local peers = storage.peers
+  local peer_i
+  if oldpeer then
+    if oldpeer.type == "peer" then
+      for i, peer in pairs(peers) do
+          if peer == oldpeer then
+            peer_i = i
+            break
+          end
+        end
+    else
+      return -- conflicts with existing other type port
+    end
+  else
+    peer_i = #peers + 1
+  end
+
+  local peer = ports.peer(port, player)
+  peers[peer_i] = peer
+  pl[port] = peer
+end)
+
+commands.add_command("FBUnpeer", "", function (param)
+  local player,port = parse_player_and_port(param.parameter)
+  if not player then return end
+  ---@cast port -?
+
+  local rp = storage.remote_ports
+  local pl = rp[player]
+  if not pl then return end
+  local peer = pl[port]
+  if not peer then return end
+  if peer.type ~= "peer" then return end
+
+  pl[port] = nil
+  for i, oldpeer in pairs(storage.peers) do
+    if peer == oldpeer then
+      table.remove(storage.peers, i)
+      break
+    end
+  end
+end)
+
+commands.add_command("FBTun", "", function (param)
+  local player,port = parse_player_and_port(param.parameter)
+  if not (port or param.parameter=="close") then return end
+
+  local rp = storage.remote_ports
+  local old = storage.router
+  if old then
+    rp[old.player][old.port] = nil
+  end
+
+  if param.parameter=="close" then return end
+  ---@cast port -?
+  ---@cast player -?
+
+  local router = ports.router(port, player)
+  storage.router = router
+
+  local pl = rp[player]
+  if not pl then
+    pl = {}
+    rp[player] = pl
+  end
+  pl[port] = router
 end)
