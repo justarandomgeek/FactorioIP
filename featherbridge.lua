@@ -1,11 +1,13 @@
+---@type Proto
 local featherbridge_proto = Proto("featherbridge","FeatherBridge Peering")
 
 local fb_msgtype = {
-    [1] = "signals",
+    [1] = "Raw Signals",
+    [2] = "Packed Messages",
+    [3] = "Peer Info",
 }
 local msgtype_pfield = ProtoField.uint8("featherbridge.msgtype", "Message Type", base.DEC, fb_msgtype)
 
--- for msgtype 1 signals:
 local fb_fnetproto = {
     [0] = "RAW",
     [1] = "IPv6",
@@ -14,13 +16,42 @@ local fb_fnetproto = {
     [4] = "Map Transfer",
     [5] = "Map Transfer Extended",
 }
-local proto_pfield = ProtoField.int32("featherbridge.proto", "Protocol ID", base.DEC, fb_fnetproto)
-local src_pfield = ProtoField.int32("featherbridge.src", "Source Address", base.DEC)
-local dst_pfield = ProtoField.int32("featherbridge.dst", "Dest Address", base.DEC)
 
-local numqual_pfield = ProtoField.uint8("featherbridge.numqual", "Number of Quality Sections", base.DEC)
-local qual_pfield = ProtoField.string("featherbridge.quality", "Quality")
-local numsigs_pfield = ProtoField.uint24("featherbridge.numsigs", "Number of Signals", base.DEC)
+local fb_fnetprotoshort = {
+    [0] = "RAW",
+    [1] = "IPv6",
+    [2] = "FCP",
+    [3] = "MapReq",
+    [4] = "MapTrans",
+    [5] = "MapTransEx",
+}
+local proto_pfield = ProtoField.int32("featherbridge.fnet_proto", "Protocol ID", base.DEC, fb_fnetproto)
+local src_pfield = ProtoField.uint32("featherbridge.src", "Source Address", base.HEX)
+local dst_pfield = ProtoField.uint32("featherbridge.dst", "Dest Address", base.HEX)
+
+featherbridge_proto.fields = {
+    msgtype_pfield,
+    proto_pfield,
+    src_pfield,
+    dst_pfield,
+}
+
+local msgtype_dt = DissectorTable.new("featherbridge.msgtype", "FeatherBridge Message Type", ftypes.UINT8)
+
+function featherbridge_proto.dissector(buffer,pinfo,tree)
+    pinfo.columns.protocol = "FeatherBridge"
+    local message = tree:add(featherbridge_proto,buffer())
+    message:add(msgtype_pfield, buffer(0,1))
+    msgtype_dt:try(buffer(0,1):uint(), buffer(1):tvb(), pinfo, message)
+end
+
+
+---@type Proto
+local raw_proto = Proto("featherbridge.raw","FeatherBridge Raw Signals")
+
+local numqual_pfield = ProtoField.uint8("featherbridge.raw.numqual", "Number of Quality Sections", base.DEC)
+local qual_pfield = ProtoField.string("featherbridge.raw.quality", "Quality")
+local numsigs_pfield = ProtoField.uint16("featherbridge.raw.numsigs", "Number of Signals", base.DEC)
 
 local fb_sigtype = {
     [0]="item",
@@ -32,15 +63,11 @@ local fb_sigtype = {
     [6]="quality",
     [7]="asteroid-chunk",
 }
-local sigtype_pfield = ProtoField.uint8("featherbridge.sigtype", "Type", base.DEC, fb_sigtype)
-local signame_pfield = ProtoField.string("featherbridge.signame", "Name")
-local sigvalue_pfield = ProtoField.int32("featherbridge.sigtype", "Value", base.DEC)
+local sigtype_pfield = ProtoField.uint8("featherbridge.raw.sigtype", "Type", base.DEC, fb_sigtype)
+local signame_pfield = ProtoField.string("featherbridge.raw.signame", "Name")
+local sigvalue_pfield = ProtoField.int32("featherbridge.raw.sigtype", "Value", base.DEC)
 
-featherbridge_proto.fields = {
-    msgtype_pfield,
-    proto_pfield,
-    src_pfield,
-    dst_pfield,
+raw_proto.fields = {
     numqual_pfield,
     qual_pfield,
     numsigs_pfield,
@@ -49,36 +76,42 @@ featherbridge_proto.fields = {
     sigvalue_pfield,
 }
 
-function featherbridge_proto.dissector(buffer,pinfo,tree)
-    pinfo.columns.protocol = "FeatherBridge"
-    local message = tree:add(featherbridge_proto,buffer())
-    message:add(msgtype_pfield, buffer(0,1))
-    --TODO: switch on message type? my own dissectortable for it?
-    if buffer(0,1):uint() ~= 1 then return end
+local function fnet_address(buffer)
+    return Address.ipv6(
+        "fe80::"..
+        buffer:range(0,2):bytes():tohex()..":"..
+        buffer:range(2,2):bytes():tohex())
+end
 
-    pinfo.columns.info = ""
+function raw_proto.dissector(buffer,pinfo,tree)
+    local message = tree:add(raw_proto,buffer())
 
-    message:add(proto_pfield, buffer(1,4))
-
-    local srcbuff = buffer(5,4)
-    message:add(src_pfield, srcbuff)
-    --pinfo.src = srcbuff:ipv4() -- src and dst only take Address objects, ipv4 is the only one the right size...
-    local dstbuff = buffer(9,4)
-    message:add(dst_pfield, dstbuff)
-    --pinfo.dst = dstbuff:ipv4()
-
-    local numqual = buffer(13,1)
+    local protoid = buffer(0,4)
+    local src = buffer(4,4)
+    local dst = buffer(8,4)
+    local numqual = buffer(12,1)
+    message:add(proto_pfield, protoid)
+    message:add(src_pfield, src)
+    message:add(dst_pfield, dst)
     message:add(numqual_pfield, numqual)
 
-    local offset = 14
+    -- these have to be wrapped in fake Address objects for the column to take it, 
+    -- so pretend they're link-local v6...
+    -- v4 or ether woudl be a better "fit" but they display with useless decodes
+    pinfo.src = fnet_address(src)
+    pinfo.dst = fnet_address(dst)
 
-    --TODO: also collect the signals in a table for a dissector pulling out fnet protocols (as expertinfos?)
+    local nsig = 0
+    local offset = 13
+
+    --TODO: record last seen map transfer?
+    --TODO: collect the data from IP-mode in a ByteArray and dissect that?
     for i = 1, numqual:uint(), 1 do
         local namesize = buffer(offset,1):uint()
         local qual = message:add(qual_pfield, buffer(offset, namesize+1), buffer(offset+1, namesize):string())
         offset = offset+namesize+1
-        local numsigbuff = buffer(offset,3)
-        offset = offset+3
+        local numsigbuff = buffer(offset,2)
+        offset = offset+2
         qual:add(numsigs_pfield, numsigbuff)
         for j = 1, numsigbuff:uint(), 1 do
             local typebuff = buffer(offset,1)
@@ -92,9 +125,14 @@ function featherbridge_proto.dissector(buffer,pinfo,tree)
             sig:add(sigvalue_pfield, sigvalbuff)
 
             offset = offset+signamesize+6
+            nsig = nsig + 1
         end
     end
+
+    pinfo.columns.info = string.format("%i → %i %s NQual=%i NSig=%i", src:int(), dst:int(), fb_fnetprotoshort[protoid:int()] or "?", numqual:uint(), nsig)
 end
+
+msgtype_dt:add(1, raw_proto)
 
 
 DissectorTable.get("udp.port"):add_for_decode_as(featherbridge_proto)

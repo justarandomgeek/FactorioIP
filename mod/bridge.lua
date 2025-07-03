@@ -46,8 +46,8 @@ end
 function bridge.broadcast(packet, from_port)
   -- no copying for router/peers, they always succeed (as far as this bridge is concerned, anwyay)
   local router = storage.router
-  if router and storage.router ~= from_port then
-    storage.router:send(packet)
+  if router and router ~= from_port then
+    router:send(packet)
   end
   for _, peer in pairs(storage.peers) do
     if peer ~= from_port then

@@ -28,15 +28,49 @@ end
 
 --[[
 
-0x01 message type (for future versioning)
+0x01 mtype=raw
 fnet header:
   protoid (int32)
   src_addr (int32)
   dst_addr (int32)
 num qual sections (uint8)
   qual name (string8)
-  num sigs (int24?)
+  num sigs (uint16)
     type(uint8), name(string8), value(int32)
+
+0x02 mtype=packed
+fnet header
+  (same as raw)
+then packed body per-protocol...
+
+
+0x03 mtype=peerinfo
+  "this is":
+    mod version (u16.u16.u16)
+    bridge id (int32)
+  "calling":
+    player id (int32)
+    port (uint16)
+  TLVs for the rest? 
+    type u16, datasize u16, data (`datasize` bytes)
+  0001 last seen partner
+    bridge i32, player i32, port u16, ticks_ago u16
+  0002 list other known peers?
+    my(player i32, port i32) was (bridge i32, player i32, port u16), ticks_ago u16
+
+  ip tunnel port info?
+    map size u16, ticks_ago_recv u16
+  
+  list supported packed protocols?
+    list fnet protoids
+  supported peering features?
+    list optional mtypes?
+  (local) neighbor info?
+
+peer mapex for denser messages?
+some kind of loop detection/spanning-tree exchange?
+
+
 
 ]]
 
@@ -84,12 +118,21 @@ for i, info in pairs(typeinfos) do
   typeids[info.name] = i
 end
 
+---@type {[integer]:fun(self:FBPeerPort, packet:string)}
+local mtype_handlers = {}
+
 ---@param packet string
 function peer:on_received_packet(packet)
-  --dest address...
-  local
   ---@type uint8
-  mtype,
+  local mtype = string.unpack(">B", packet)
+  local handler = mtype_handlers[mtype]
+  if handler then
+    handler(self, packet)
+  end
+end
+
+mtype_handlers[1] = function(self, packet)
+  local
   ---@type int32
   ptype,
   ---@type int32
@@ -99,10 +142,7 @@ function peer:on_received_packet(packet)
   ---@type uint8
   qual_sections,
   ---@type integer
-  i = string.unpack(">Bi4i4i4B", packet, 1)
-
-  -- invalid message type...
-  if mtype ~= 1 then return nil end
+  i = string.unpack(">xi4i4i4B", packet)
 
   ---@type LogisticFilter[]
   local filters = {}
@@ -111,7 +151,7 @@ function peer:on_received_packet(packet)
 
   for _ = 1,qual_sections,1 do
     local quality,num_signals
-    quality,num_signals,i = string.unpack(">s1I3", packet, i)
+    quality,num_signals,i = string.unpack(">s1I2", packet, i)
 
     local qvalid = not not qmap[quality]
     for _ = 1,num_signals,1 do
@@ -184,7 +224,10 @@ function peer:send(packet)
   }
 
   for qname, qgroup in pairs(qgroups) do
-    out[#out+1] = string.pack(">s1I3", qname, #qgroup)
+    local numsigs = #qgroup
+    if numsigs > 0xffff then return end --too many signals, drop it.
+    --TODO: maybe just split oversize an oversize group into two groups for the same qual?
+    out[#out+1] = string.pack(">s1I2", qname, numsigs)
     out[#out+1] = table.concat(qgroup)
   end
 

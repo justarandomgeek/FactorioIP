@@ -1,8 +1,8 @@
 ---@class (exact) FBStorage
----@field address int32 router address
+---@field address int32 bridge/router address
 ---@field router FBRouterPort?
----@field id_to_signal {[integer]:SignalID}
----@field signal_to_id {[QualityID]:{[SignalIDType]:{[string]:integer}}}
+---@field id_to_signal {[integer]:SignalID} --TODO: use LuaXPrototype objects here for free migrations
+---@field signal_to_id {[QualityID]:{[SignalIDType]:{[string]:integer}}} --TODO: move this to a local taht's rebuilt on_load
 ---@field peers FBPeerPort[]
 ---@field remote_ports {[integer]:{[int16]:FBRemotePort}} map player->port->Port for dispatching received udp packets
 ---@field nodes {[integer]:FBCombinatorPort}
@@ -123,10 +123,11 @@ local function parse_player_and_port(parameter)
   if not parameter then return end
   local player,port = string.match(parameter, "(%d+) (%d+)")
   if not player then return end
-  ---@cast port -?
   player = tonumber(player)
   port = tonumber(port)
-  
+  ---@cast player integer
+  ---@cast port integer
+
   if port < 0 or port > 65535 then return end
   if not (player == 0 or game.get_player(player)) then return end
 

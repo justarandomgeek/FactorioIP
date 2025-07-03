@@ -98,7 +98,7 @@ Quality Section Header:
 | type     | Field         |
 |----------|---------------|
 | string8  | Quality Name  |
-| int24    | Num Signals   |
+| uint16   | Num Signals   |
 
 Signal Entry:
 
