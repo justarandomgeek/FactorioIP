@@ -40,10 +40,14 @@ script.on_event(defines.events.on_received_packet, function (event)
   port:on_received_packet(payload)
 end)
 
-script.on_nth_tick(30*60, function(e)
+script.on_nth_tick(60*60, function(e)
+  for _, peer in pairs(storage.peers) do
+    peer:send_peer_info()
+  end
+
   local router = storage.router
   if router then
-    router:periodic()
+    router:advertise()
   end
 end)
 

@@ -1,4 +1,3 @@
----@type Proto
 local featherbridge_proto = Proto("featherbridge","FeatherBridge Peering")
 
 local fb_msgtype = {
@@ -45,8 +44,6 @@ function featherbridge_proto.dissector(buffer,pinfo,tree)
     msgtype_dt:try(buffer(0,1):uint(), buffer(1):tvb(), pinfo, message)
 end
 
-
----@type Proto
 local raw_proto = Proto("featherbridge.raw","FeatherBridge Raw Signals")
 
 local numqual_pfield = ProtoField.uint8("featherbridge.raw.numqual", "Number of Quality Sections", base.DEC)
@@ -129,10 +126,50 @@ function raw_proto.dissector(buffer,pinfo,tree)
         end
     end
 
-    pinfo.columns.info = string.format("%i → %i %s NQual=%i NSig=%i", src:int(), dst:int(), fb_fnetprotoshort[protoid:int()] or "?", numqual:uint(), nsig)
+    pinfo.columns.info = string.format("%x → %x %s NQual=%i NSig=%i", src:uint(), dst:uint(), fb_fnetprotoshort[protoid:int()] or "?", numqual:uint(), nsig)
 end
-
 msgtype_dt:add(1, raw_proto)
 
+local peerinfo_proto = Proto("featherbridge.peerinfo","FeatherBridge Peer Info")
+
+local peerversion_pfield = ProtoField.string("featherbridge.peerinfo.version", "Version")
+local bridgeid_pfield = ProtoField.uint32("featherbridge.peerinfo.bridgeid", "Bridge ID", base.HEX)
+local player_pfield = ProtoField.uint32("featherbridge.peerinfo.player", "Player ID", base.DEC)
+local port_pfield = ProtoField.uint32("featherbridge.peerinfo.port", "Port", base.DEC)
+
+peerinfo_proto.fields = {
+    peerversion_pfield,
+    bridgeid_pfield,
+    player_pfield,
+    port_pfield,
+}
+
+
+---@param buffer TvbRange
+---@return string
+local function read_version(buffer)
+    return string.format("%i.%i.%i", buffer(0,2):uint(), buffer(2,2):uint(), buffer(4,2):uint())
+end
+
+
+function peerinfo_proto.dissector(buffer,pinfo,tree)
+    local message = tree:add(peerinfo_proto,buffer())
+    
+    local version = buffer(0,6)
+    message:add(peerversion_pfield, version, read_version(version))
+    local bridgeid = buffer(6,4)
+    message:add(bridgeid_pfield, bridgeid)
+    local player = buffer(10,4)
+    message:add(player_pfield, player)
+    local port = buffer(14,2)
+    message:add(port_pfield, port)
+
+    pinfo.columns.info = string.format("PeerInfo %x → %i:%i", bridgeid:uint(), player:int(), port:uint())
+
+    local tlvs = buffer(16)
+    message:add(tlvs,"TLVs")
+    --TODO: a sub-proto for TLVs
+end
+msgtype_dt:add(3, peerinfo_proto)
 
 DissectorTable.get("udp.port"):add_for_decode_as(featherbridge_proto)

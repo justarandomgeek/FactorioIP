@@ -30,7 +30,7 @@ local function new(port, player)
   }, router_meta)
 end
 
-function router:periodic()
+function router:advertise()
   bridge.send({
     proto = 2,
     src_addr = storage.address,

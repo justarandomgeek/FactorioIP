@@ -1,7 +1,8 @@
 ---@class (exact) Neighbor
 ---@field bridge_port FBBridgePort? # known port if any
 ---@field address int32 # neighbor's link layer address
----@field last_seen int32 # tick last seen transmit from
+---@field last_seen MapTick # tick last seen transmit from
+---@field last_sought MapTick # tick last seen transmit from
 
 ---@class (exact) FBBridgePort
 ---@field send fun(self:FBBridgePort, packet:QueuedPacket)
@@ -23,6 +24,7 @@ function bridge.seen(node, address)
       address = address,
       bridge_port = node,
       last_seen = game.tick,
+      last_sought = 0,
     }
     storage.neighbors[address] = neighbor
   end
@@ -67,6 +69,7 @@ end
 ---@return FBBridgePort?
 function bridge.current_port(neighbor)
   if not neighbor then return end
+  neighbor.last_sought = game.tick
   if (game.tick - neighbor.last_seen) > 60*60 then
     neighbor.bridge_port = nil
     return
@@ -95,6 +98,7 @@ function bridge.send(packet, from_port)
         neighbor = {
           address = packet.dest_addr,
           last_seen = 0,
+          last_sought = game.tick,
         }
         storage.neighbors[neighbor.address] = neighbor
       end
