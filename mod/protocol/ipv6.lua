@@ -3,9 +3,11 @@ local protocol = require("protocol.protocol")
 local ipv6 = {}
 
 protocol.handlers[1] = {
-  dispatch = function(packet)
+  dispatch = function(router, packet)
     local map = storage.signal_to_id
     if not map then return end
+    if router.port == 0 then return end
+    if not (router.player==0 or game.get_player(router.player).connected) then return end
 
     local packet_values = {}
     packet_values[400] = nil

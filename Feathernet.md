@@ -66,10 +66,8 @@ Flags:
 
 | Value      | Purpose                        |
 |------------|--------------------------------|
-| 0x00000001 | Router                         |
+| 0x00000001 | IP Tunnel Active               |
 | 0x00000002 | Supports Signal Map Transfer   |
-
-A Router node supports forwarding traffic to ordered-data networks (such as IP).
 
 ## FeatherBridge Peering
 

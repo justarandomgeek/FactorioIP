@@ -185,7 +185,7 @@ function port:on_tick()
 end
 
 ---@public
-function port:queues()
+function port:status()
   local status = {}
     if self.did_tx_last_tick then
       status[#status+1] = "did_tx"

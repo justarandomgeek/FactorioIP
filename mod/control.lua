@@ -1,6 +1,6 @@
 ---@class (exact) FBStorage
 ---@field address int32 bridge/router address
----@field router FBRouterPort?
+---@field router FBRouterPort
 ---@field id_to_signal {[integer]:SignalID} --TODO: use LuaXPrototype objects here for free migrations
 ---@field signal_to_id {[QualityID]:{[SignalIDType]:{[string]:integer}}} --TODO: move this to a local taht's rebuilt on_load
 ---@field peers FBPeerPort[]
@@ -45,15 +45,21 @@ script.on_nth_tick(60*60, function(e)
     peer:send_peer_info()
   end
 
-  local router = storage.router
-  if router then
-    router:advertise()
+  storage.router:advertise()
+
+  -- drop stale neighbor records
+  local stale = game.tick - 15*60*60
+  for addr, neigh in pairs(storage.neighbors) do
+    if neigh.last_sought < stale and neigh.last_seen < stale then
+      storage.neighbors[addr] = nil
+    end
   end
 end)
 
 script.on_init(function()
   storage = {
     address = math.random(0x10000,0x7fffffff),
+    router = ports.router(),
     nodes = {},
     id_to_signal = {},
     signal_to_id = {},
@@ -63,9 +69,37 @@ script.on_init(function()
   }
 end)
 
+script.on_load(function()
+  --reload reverse maps
+  --reload port dispatch map
+end)
+
+script.on_configuration_changed(function(change)
+  storage.neighbors = {}
+  for _, peer in pairs(storage.peers) do
+    peer:on_configuration_changed(change)
+  end
+  if not storage.router then
+    storage.router = ports.router()
+  end
+  --TODO: check signal maps still valid
+end)
+
+script.on_event(defines.events.on_player_left_game, function (event)
+  -- mark peers as dead
+end)
+
+script.on_event(defines.events.on_player_removed, function (event)
+  -- remove ports entirely (and cleanup neighbor entries)
+end)
+
+script.on_event(defines.events.on_player_joined_game, function (event)
+  -- announce to peers?
+end)
+
 script.on_event(defines.events.on_tick, function()
   for player_id, player_ports in pairs(storage.remote_ports) do
-    if next(player_ports) then
+    if next(player_ports) and (player_id==0 or game.get_player(player_id).connected) then
       helpers.recv_udp(player_id)
     end
   end
@@ -98,24 +132,20 @@ commands.add_command("FBstatus", "", function (param)
   local player = game.get_player(param.player_index)
   ---@cast player -?
   local out = {
-    string.format("address %8X", storage.address),
+    string.format("bridge %8X", storage.address),
   }
-  if storage.router then
-    out[#out+1] = string.format("router %i:%i", storage.router.player, storage.router.port)
-  end
+  out[#out+1] = storage.router:status()
   for _, peer in pairs(storage.peers) do
-    out[#out+1] = string.format("peer %i:%i", peer.player, peer.port)
+    out[#out+1] = peer:status()
   end
-
-  out[#out+1] = "\nqueues:"
   for _, node in pairs(storage.nodes) do
-    out[#out+1] = node:queues()
+    out[#out+1] = node:status()
   end
 
   out[#out+1] = "\nneighbors:"
   for _, neighbor in pairs(storage.neighbors) do
     local port = neighbor.bridge_port and neighbor.bridge_port:label() or "-"
-    out[#out+1] = string.format("addr %8X port %s last_seen %i", bit32.band(neighbor.address), port, neighbor.last_seen)
+    out[#out+1] = string.format("addr %8X port %s last_seen %i last_sought %i", bit32.band(neighbor.address), port, game.tick-neighbor.last_seen, game.tick-neighbor.last_sought)
   end
   player.print(table.concat(out, "\n"))
 end)
@@ -195,26 +225,12 @@ commands.add_command("FBUnpeer", "", function (param)
 end)
 
 commands.add_command("FBTun", "", function (param)
-  local player,port = parse_player_and_port(param.parameter)
-  if not (port or param.parameter=="close") then return end
-
-  local rp = storage.remote_ports
-  local old = storage.router
-  if old then
-    rp[old.player][old.port] = nil
+  if param.parameter=="close" then
+    storage.router:set_tunnel(0,0)
+  else
+    local player,port = parse_player_and_port(param.parameter)
+    if not player then return end
+    ---@cast port -?
+    storage.router:set_tunnel(player,port)
   end
-
-  if param.parameter=="close" then return end
-  ---@cast port -?
-  ---@cast player -?
-
-  local router = ports.router(port, player)
-  storage.router = router
-
-  local pl = rp[player]
-  if not pl then
-    pl = {}
-    rp[player] = pl
-  end
-  pl[port] = router
 end)

@@ -1,5 +1,4 @@
 local protocol = require("protocol.protocol")
-local bridge = require("bridge")
 
 ---@type SignalID
 local fcpmsgtype = {
@@ -19,56 +18,71 @@ local fcpflags = {
   name = "signal-2"
 }
 
----@return LogisticFilter[]
-local function advertise()
+---@enum fcp_adv_flags
+local adv_flags = {
+  ip_tun = 1,
+  map_trans = 2,
+}
+
+---@param dest int32
+---@param flags fcp_adv_flags
+---@return QueuedPacket
+local function advertise(dest, flags)
   return {
-    protocol.signal_value(fcpmsgtype, 2),
-    protocol.signal_value(fcpsubject, storage.address),
-    protocol.signal_value(fcpflags, 3),
+    proto = 2,
+    src_addr = storage.address,
+    dest_addr = dest,
+    retry_count = 4,
+    payload = {
+      protocol.signal_value(fcpmsgtype, 2),
+      protocol.signal_value(fcpsubject, storage.address),
+      protocol.signal_value(fcpflags, flags),
+    }
   }
 end
 
 ---@param address int32
----@return LogisticFilter[]
+---@return QueuedPacket
 local function solicit(address)
   return {
-    protocol.signal_value(fcpmsgtype, 1),
-    protocol.signal_value(fcpsubject, address),
+    proto = 2,
+    src_addr = storage.address,
+    dest_addr = 0,
+    retry_count = 2,
+    payload = {
+      protocol.signal_value(fcpmsgtype, 1),
+      protocol.signal_value(fcpsubject, address),
+    }
   }
 end
 
 
 
----@type {[int32]: fun(packet:QueuedPacket)}
+---@type {[int32]: fun(router:FBRouterPort, packet:QueuedPacket)}
 local msg_handlers = {
   -- solicit
-  [1] = function(packet)
+  [1] = function(router, packet)
     local subject = protocol.find_signal(packet.payload, fcpsubject)
     if subject == storage.address or subject == 0 then
       -- got a solicit for me, so send an advertise back...
-      bridge.send({
-        proto = 2,
-        src_addr = storage.address,
-        dest_addr = packet.src_addr,
-        retry_count = 4,
-        payload = advertise()
-      }, storage.router)
+      router:advertise(packet.src_addr)
     end
   end,
 }
 
 
 protocol.handlers[2] = {
-  dispatch = function(packet)
+  dispatch = function(router, packet)
     local mtype = protocol.find_signal(packet.payload, fcpmsgtype)
     local handler = msg_handlers[mtype]
     if handler then
-      handler(packet)
+      handler(router, packet)
     end
   end,
 }
 
 return {
   advertise = advertise,
+  adv_flags = adv_flags,
   solicit = solicit,
 }

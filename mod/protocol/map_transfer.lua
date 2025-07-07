@@ -3,7 +3,7 @@ local bridge = require("bridge")
 
 -- map request
 protocol.handlers[3] = {
-  dispatch = function(packet)
+  dispatch = function(router, packet)
     if packet.dest_addr == 0 then return end
 
     local mapid = protocol.find_signal(packet.payload, {type="entity", name="item-request-proxy"})
@@ -54,7 +54,7 @@ end
 
 -- map transfer
 protocol.handlers[4] = {
-  dispatch = function(packet)
+  dispatch = function(router, packet)
     if packet.dest_addr == 0 then return end
 
     local mapid = protocol.find_signal(packet.payload, {type="entity", name="item-request-proxy"})

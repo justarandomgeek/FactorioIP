@@ -26,6 +26,10 @@ local function new(port, player)
   }, peer_meta)
 end
 
+---@param change ConfigurationChangedData
+function peer:on_configuration_changed(change)
+  self.partner = nil
+end
 
 --[[
 
@@ -45,6 +49,7 @@ fnet header
 then packed body per-protocol...
 
 
+
 0x03 mtype=peerinfo
   "this is":
     mod version (u16.u16.u16)
@@ -52,27 +57,36 @@ then packed body per-protocol...
   "calling on":
     player id (int32)
     port (uint16)
-  TLVs for the rest? 
+  TLVs for the rest
     type u8, datasize u16, data (`datasize` bytes)
   01 last seen partner
     info_bridge i32, info_player i32, info_port u16, info_ticks_ago u16, data_ticks_ago u16
-  02 other known peers
+  02 other known peer
     my(player i32, port i32) was (bridge i32, player i32, port u16, info_ticks_ago u16, data_ticks_ago u16)
   
+  routing info
+    neighbor i32
+      local
+      via (list of bridge ids along path)
+    
+  ip tunnel status?
+    map info? recv_ticks_ago?
   active mods?
-  ip tunnel port info?
-    map size u16, ticks_ago_recv u16
-  
   list supported packed protocols?
     list fnet protoids
-  supported peering features?
-    list optional mtypes?
-  (local) neighbor info?
+
+0x04 fragmented message
+  msg id (uint32) random? sequential? hash some header bits + tick?
+  offset (uint32)
+  flags
+    last fragment
+  size (uint16)
+  data
+    [chunks of any fragmentable mtype]
 
 peer mapex for denser messages?
-some kind of loop detection/spanning-tree exchange?
-
-
+some way to derive a map-hash from just listing everything locally to save the exchange when all matches?
+some kind of loop detection/spanning-tree exchange? elect a leader? ip tunnel or lowest id?
 
 ]]
 
@@ -80,38 +94,38 @@ local packed_version = string.pack(">I2I2I2", string.match(script.active_mods[sc
 
 local qmap = prototypes.quality
 
----@type {name:SignalIDType, protos:LuaCustomTable<string>}[]
+---@type {type:SignalIDType, protos:LuaCustomTable<string>}[]
 local typeinfos = { -- same order as SignalIDBase::Type internal enum
   [0]={
-    name = "item",
+    type = "item",
     protos = prototypes.item,
   },
   {
-    name = "fluid",
+    type = "fluid",
     protos = prototypes.fluid,
   },
   {
-    name = "virtual",
+    type = "virtual",
     protos = prototypes.virtual_signal,
   },
   {
-    name = "recipe",
+    type = "recipe",
     protos = prototypes.recipe,
   },
   {
-    name = "entity",
+    type = "entity",
     protos = prototypes.entity,
   },
   {
-    name = "space-location",
+    type = "space-location",
     protos = prototypes.space_location,
   },
   {
-    name = "quality",
+    type = "quality",
     protos = prototypes.quality,
   },
   {
-    name = "asteroid-chunk",
+    type = "asteroid-chunk",
     protos = prototypes.asteroid_chunk,
   },
 }
@@ -119,15 +133,22 @@ local typeinfos = { -- same order as SignalIDBase::Type internal enum
 ---@type table<SignalIDType, uint8>
 local typeids = {}
 for i, info in pairs(typeinfos) do
-  typeids[info.name] = i
+  typeids[info.type] = i
 end
 
----@type {[integer]:fun(self:FBPeerPort, packet:string)}
+---@enum msgtype
+local msgtype = {
+  raw = 1,
+  packed = 2,
+  peerinfo = 3,
+}
+
+---@type {[msgtype]:fun(self:FBPeerPort, packet:string)}
 local mtype_handlers = {}
 
 ---@param packet string
 function peer:on_received_packet(packet)
-  ---@type uint8
+  ---@type msgtype
   local mtype = string.unpack(">B", packet)
   local handler = mtype_handlers[mtype]
   if handler then
@@ -138,7 +159,7 @@ function peer:on_received_packet(packet)
   end
 end
 
-mtype_handlers[1] = function(self, packet)
+mtype_handlers[msgtype.raw] = function(self, packet)
   local
   ---@type int32
   ptype,
@@ -168,7 +189,7 @@ mtype_handlers[1] = function(self, packet)
         local typeinfo = typeinfos[typeid]
         if typeinfo and typeinfo.protos[name] then
           filters[#filters+1] = protocol.signal_value({
-            type = typeinfo.name,
+            type = typeinfo.type,
             name = name,
             quality = quality,
           }, value)
@@ -211,6 +232,7 @@ end
 function peer:send(packet)
   self:expire_partner()
   if not self.partner then return end
+  if not (self.player==0 or game.get_player(self.player).connected) then return end
 
   local qgroups = {}
   for _, signal in pairs(packet.payload) do
@@ -229,23 +251,31 @@ function peer:send(packet)
   end
 
   local out = {
-    string.pack(">Bi4i4i4B", 1, packet.proto, packet.src_addr, packet.dest_addr, table_size(qgroups))
+    string.pack(">Bi4i4i4B", msgtype.raw, packet.proto, packet.src_addr, packet.dest_addr, table_size(qgroups))
   }
 
   for qname, qgroup in pairs(qgroups) do
     local numsigs = #qgroup
     if numsigs > 0xffff then return end --too many signals, drop it.
     --TODO: maybe just split oversize an oversize group into two groups for the same qual?
+    -- probably too large for one packet anyway at that point, so need to fragment it?...
     out[#out+1] = string.pack(">s1I2", qname, numsigs)
+    --TODO: probably faster to just flatten the list into one table and let the concat at the end do it all!
     out[#out+1] = table.concat(qgroup)
   end
 
   helpers.send_udp(self.port, table.concat(out), self.player)
 end
 
----@type {[integer]:fun(self:FBPeerPort, data:string)}
+---@enum peerinfo_opt
+local peerinfo_opt = {
+  knownpeer = 1,
+  otherpeer = 2,
+}
+
+---@type {[peerinfo_opt]:fun(self:FBPeerPort, options:table, data:string)}
 local peerinfo_handlers = {}
-mtype_handlers[3] = function(self, packet)
+mtype_handlers[msgtype.peerinfo] = function(self, packet)
   -- got peer info
   local version, address, player, port, i = string.unpack(">xc6i4I4I2", packet)
   --TODO: compare versions?
@@ -254,9 +284,10 @@ mtype_handlers[3] = function(self, packet)
     lastpartner.player = player
     lastpartner.port = port
     lastpartner.last_info = game.tick
+    -- reset any proto options
   else
     self.partner = {
-      --TODO: record version?
+      --TODO: record version? space for any proto options?
       address = address,
       player = player,
       port = port,
@@ -265,33 +296,43 @@ mtype_handlers[3] = function(self, packet)
     }
   end
 
+  local options = {}
+
   while i < #packet do
-    local typecode,datasize
-    typecode,datasize,i = string.unpack(">BI2", packet, i)
+    local typecode,data
+    typecode,data,i = string.unpack(">Bs2", packet, i)
 
     local handler = peerinfo_handlers[typecode]
     if handler then
-      handler(self, packet:sub(i,i+datasize))
+      handler(self, options, data)
     end
-    i = i+datasize
+    i = i
+  end
+
+  if options.send_info or not options.known_peer then
+    self:send_peer_info()
   end
 end
 
-peerinfo_handlers[1] = function(self, data)
+peerinfo_handlers[peerinfo_opt.knownpeer] = function(self, options, data)
   local address, player, port, last_info, last_data = string.unpack(">i4I4I2I2I2", data)
-  if address ~= storage.address or player ~= self.player or port ~= self.port then
-    self:send_peer_info()
+  options.known_peer = { address=address, player=player, port=port, last_info=last_info, last_data=last_data }
+  if address ~= storage.address or player ~= self.player or port ~= self.port or
+      last_info > 10*60*60 then
+    options.send_info = true
   end
 end
 
 
 ---@param type_id uint8
----@param pack_fmt string
+---@param pack string
 ---@param ... string|number
 ---@return string
-local function tlv(type_id, pack_fmt, ...)
-  local size = string.packsize(pack_fmt)
-  return string.pack(">BI2"..pack_fmt, type_id, size, ...)
+local function tlv(type_id, pack, ...)
+  if ... then
+    pack = string.pack(pack, ...)
+  end
+  return string.pack(">Bs2", type_id, pack)
 end
 
 ---@param t MapTick
@@ -306,21 +347,23 @@ end
 
 function peer:send_peer_info()
   self:expire_partner()
+  if not (self.player==0 or game.get_player(self.player).connected) then return end
+
   local out = {
-    string.pack(">Bc6i4i4I2", 3, packed_version, storage.address, self.player, self.port)
+    string.pack(">Bc6i4i4I2", msgtype.peerinfo, packed_version, storage.address, self.player, self.port)
   }
 
   do
     local partner = self.partner
     if partner then
-      out[#out+1] = tlv(1, ">i4I4I2I2I2", partner.address, partner.player, partner.port, ticks_ago(partner.last_info), ticks_ago(partner.last_data))
+      out[#out+1] = tlv(peerinfo_opt.knownpeer, ">i4I4I2I2I2", partner.address, partner.player, partner.port, ticks_ago(partner.last_info), ticks_ago(partner.last_data))
     end
   end
 
   for _, other in pairs(storage.peers) do
     local partner = other.partner
     if self ~= other  and partner then
-      out[#out+1] = tlv(2, ">I4I2i4I4I2I2I2", other.player, other.port, partner.address, partner.player, partner.port, ticks_ago(partner.last_info), ticks_ago(partner.last_data))
+      out[#out+1] = tlv(peerinfo_opt.otherpeer, ">I4I2i4I4I2I2I2", other.player, other.port, partner.address, partner.player, partner.port, ticks_ago(partner.last_info), ticks_ago(partner.last_data))
     end
   end
 
@@ -340,6 +383,14 @@ end
 
 function peer:label()
   return string.format("u%i:%i", self.player, self.port)
+end
+
+function peer:status()
+  local partner = "-"
+  if self.partner then
+    partner = string.format("%8X:%i:%i last_info %i last_data %i", bit32.band(self.partner.address), self.partner.player, self.partner.port, game.tick-self.partner.last_info, game.tick-self.partner.last_data)
+  end
+  return string.format("peer %i:%i %s", self.player, self.port, partner)
 end
 
 return new

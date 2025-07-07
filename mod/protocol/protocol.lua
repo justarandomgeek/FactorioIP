@@ -1,6 +1,6 @@
 
 ---@class FBProtocol
----@field dispatch fun(packet:QueuedPacket) # handle a packet dispatched from the switch to the Router port
+---@field dispatch fun(router:FBRouterPort, packet:QueuedPacket) # handle a packet dispatched from the switch to the Router port
 
 ---@class FBProtocolLib
 return {

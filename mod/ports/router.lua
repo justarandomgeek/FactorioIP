@@ -8,8 +8,9 @@ local bridge = require("bridge")
 
 ---@class (exact) FBRouterPort: FBBridgePort, FBRemotePort
 ---@field public type "router"
----@field public port uint16
 ---@field public player integer
+---@field public port uint16
+---@field public last_recv MapTick
 local router = {}
 
 ---@type metatable
@@ -19,24 +20,43 @@ local router_meta = {
 
 script.register_metatable("FBRouterPort", router_meta)
 
----@param port uint16
----@param player integer
 ---@return FBRouterPort
-local function new(port, player)
+local function new()
   return setmetatable({
     type = "router",
-    port = port,
-    player = player,
+    port = 0,
+    player = 0,
+    last_recv = 0,
   }, router_meta)
 end
 
-function router:advertise()
-  bridge.send({
-    proto = 2,
-    src_addr = storage.address,
-    dest_addr = 0,
-    payload = fcp.advertise()
-  }, self)
+
+---@param port uint16
+---@param player integer
+function  router:set_tunnel(player,port)
+  local rp = storage.remote_ports
+  if self.port ~= 0 then
+    rp[self.player][self.port] = nil
+  end
+
+  if port==0 then return end
+
+  local pl = rp[player]
+  if not pl then
+    pl = {}
+    rp[player] = pl
+  end
+  pl[port] = self
+end
+
+---@public
+---@param dest? int32
+function router:advertise(dest)
+  local flags = fcp.adv_flags.map_trans
+  if self.port ~= 0 then
+    flags = flags + fcp.adv_flags.ip_tun
+  end
+  bridge.send(fcp.advertise(dest or 0, flags), self)
 end
 
 ---@param packet string
@@ -54,18 +74,25 @@ function router:on_received_packet(packet)
     packet = packet .. string.rep("\0", padsize)
   end
 
+  self.last_recv = game.tick
+
   bridge.send(ipv6.parse(packet), self)
 end
 
 ---@param packet QueuedPacket
 function router:send(packet)
+  if packet.dest_addr ~= 0 and packet.dest_addr ~= storage.address then return end
   local proto = protocol.handlers[packet.proto]
   if not proto then return end
-  proto.dispatch(packet)
+  proto.dispatch(self, packet)
 end
 
 function router:label()
   return string.format("r%i:%i", self.player, self.port)
+end
+
+function router:status()
+  return string.format("router %i:%i last_recv %i", self.player, self.port, self.last_recv and game.tick-self.last_recv or -1)
 end
 
 return new

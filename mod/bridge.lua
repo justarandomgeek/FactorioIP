@@ -1,20 +1,21 @@
 ---@class (exact) Neighbor
 ---@field bridge_port FBBridgePort? # known port if any
 ---@field address int32 # neighbor's link layer address
----@field last_seen MapTick # tick last seen transmit from
----@field last_sought MapTick # tick last seen transmit from
+---@field last_seen MapTick
+---@field last_sought MapTick
 
 ---@class (exact) FBBridgePort
 ---@field send fun(self:FBBridgePort, packet:QueuedPacket)
 ---@field label fun(self:FBBridgePort):string
 
----@class bridge
+---@class FBBridge
 local bridge = {}
 
 ---@private
 ---@param node FBBridgePort
 ---@param address int32
 function bridge.seen(node, address)
+  if address == 0 then return end
   local neighbor = storage.neighbors[address]
   if neighbor then
     neighbor.bridge_port = node
@@ -88,7 +89,7 @@ function bridge.send(packet, from_port)
     if port then
       -- send it! (unless from_port == bridge_port)
       if from_port ~= port then
-        neighbor.bridge_port:send(packet)
+        port:send(packet)
       end
     else
       -- broadcast the packet...
