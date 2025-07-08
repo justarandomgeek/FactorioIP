@@ -60,7 +60,7 @@ function router:advertise(dest)
 end
 
 ---@param packet string
-function router:on_received_packet(packet)
+function router:on_udp_packet_received(packet)
   local greflags,ptype = string.unpack(">I2I2", packet)
   if greflags ~= 0 then return end
   if ptype ~= 0x86dd then return end

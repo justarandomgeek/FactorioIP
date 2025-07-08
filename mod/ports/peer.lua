@@ -147,7 +147,7 @@ local msgtype = {
 local mtype_handlers = {}
 
 ---@param packet string
-function peer:on_received_packet(packet)
+function peer:on_udp_packet_received(packet)
   ---@type msgtype
   local mtype = string.unpack(">B", packet)
   local handler = mtype_handlers[mtype]

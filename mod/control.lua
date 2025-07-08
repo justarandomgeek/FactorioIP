@@ -20,7 +20,7 @@ storage = {}
 ---@field public type "router"|"peer"
 ---@field public port uint16
 ---@field public player integer
----@field public on_received_packet fun(port:FBRemotePort, packet:string)
+---@field public on_udp_packet_received fun(port:FBRemotePort, packet:string)
 
 local bridge = require("bridge")
 
@@ -29,7 +29,7 @@ local ports = {
   peer = require("ports.peer"),
   router = require("ports.router"),
 }
-script.on_event(defines.events.on_received_packet, function (event)
+script.on_event(defines.events.on_udp_packet_received, function (event)
   local player_ports = storage.remote_ports[event.player_index]
   if not player_ports then return end
   local port = player_ports[event.source_port]
@@ -37,7 +37,7 @@ script.on_event(defines.events.on_received_packet, function (event)
 
   ---@type string
   local payload = event.payload
-  port:on_received_packet(payload)
+  port:on_udp_packet_received(payload)
 end)
 
 script.on_nth_tick(60*60, function(e)
