@@ -71,7 +71,8 @@ end)
 
 script.on_load(function()
   --reload reverse maps
-  --reload port dispatch map
+  -- signal_to_id
+  -- remote_ports
 end)
 
 script.on_configuration_changed(function(change)
@@ -87,14 +88,43 @@ end)
 
 script.on_event(defines.events.on_player_left_game, function (event)
   -- mark peers as dead
+  for _, peer in pairs(storage.peers) do
+    if peer.player ~= event.player_index then
+      peer:expire_partner(true)
+    end
+  end
 end)
 
 script.on_event(defines.events.on_player_removed, function (event)
   -- remove ports entirely (and cleanup neighbor entries)
+  if storage.router.player == event.player_index then
+    storage.router:set_tunnel(0,0)
+    -- router stays active, so no neighbor cleanup
+  end
+  local peers = {}
+  for _, peer in pairs(storage.peers) do
+    if peer.player ~= event.player_index then
+      peer[#peer+1] = peer
+    else
+      for _, neigh in pairs(storage.neighbors) do
+        if neigh.bridge_port==peer then
+          neigh.bridge_port = nil
+          neigh.last_seen = 0
+        end
+      end
+    end
+  end
+  storage.peers = peers
+  storage.remote_ports[event.player_index] = nil
 end)
 
 script.on_event(defines.events.on_player_joined_game, function (event)
-  -- announce to peers?
+  -- announce to peers if this revives any ports?
+  for _, peer in pairs(storage.peers) do
+    if peer.player ~= event.player_index then
+      peer:send_peer_info()
+    end
+  end
 end)
 
 script.on_event(defines.events.on_tick, function()

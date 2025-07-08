@@ -23,6 +23,18 @@ protocol.handlers[3] = {
       retry_count = 4,
       payload = map_out }, storage.router)
   end,
+  pack = function (packet)
+    local mapid = protocol.find_signal(packet.payload, {type="entity", name="item-request-proxy"})
+    return string.pack(">i4", mapid)
+  end,
+  unpack = function (packet, data)
+    if #data ~= 4 then return end
+    local mapid = string.unpack(">i4", data)
+    packet.payload = {
+      protocol.signal_value({type="entity", name="item-request-proxy"}, mapid)
+    }
+    return packet
+  end,
 }
 
 

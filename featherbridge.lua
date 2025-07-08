@@ -1,3 +1,5 @@
+local data_dis = Dissector.get("data")
+
 local featherbridge_proto = Proto("featherbridge","FeatherBridge Peering")
 
 local fb_msgtype = {
@@ -41,7 +43,8 @@ function featherbridge_proto.dissector(buffer,pinfo,tree)
     pinfo.columns.protocol = "FeatherBridge"
     local message = tree:add(featherbridge_proto,buffer())
     message:add(msgtype_pfield, buffer(0,1))
-    msgtype_dt:try(buffer(0,1):uint(), buffer(1):tvb(), pinfo, message)
+    local dis = msgtype_dt:get_dissector(buffer(0,1):uint()) or data_dis
+    dis:call(buffer(1):tvb(), pinfo, message)
 end
 
 local raw_proto = Proto("featherbridge.raw","FeatherBridge Raw Signals")
@@ -73,16 +76,18 @@ raw_proto.fields = {
     sigvalue_pfield,
 }
 
+---@param buffer TvbRange
 local function fnet_address(buffer)
     return Address.ipv6(
         "fe80::"..
-        buffer:range(0,2):bytes():tohex()..":"..
-        buffer:range(2,2):bytes():tohex())
+        buffer(0,2):bytes():tohex()..":"..
+        buffer(2,2):bytes():tohex())
 end
 
 ---@param buffer TvbRange
 ---@param pinfo Pinfo
 ---@param tree TreeItem
+---@return {protoid:integer, src:integer, dst:integer}
 local function fnet_header(buffer, pinfo, tree)
     local protoid = buffer(0,4)
     local src = buffer(4,4)
@@ -98,6 +103,7 @@ local function fnet_header(buffer, pinfo, tree)
     pinfo.dst = fnet_address(dst)
 
     pinfo.columns.info = fb_fnetprotoshort[protoid:int()] or "UNKP"
+    return {protoid=protoid:int(), src=src:int(), dst=dst:int()}
 end
 
 function raw_proto.dissector(buffer,pinfo,tree)
@@ -137,6 +143,50 @@ function raw_proto.dissector(buffer,pinfo,tree)
     (pinfo.columns.info--[[@as Column]]):append(string.format(" NQual=%i NSig=%i", numqual:uint(), nsig))
 end
 msgtype_dt:add(1, raw_proto)
+
+local packed_proto = Proto("featherbridge.packed","FeatherBridge Packed Signals")
+local packed_dt = DissectorTable.new("featherbridge.packed", "FeatherBridge Packed Signals", ftypes.UINT32)
+function packed_proto.dissector(buffer,pinfo,tree)
+    local head = fnet_header(buffer(0,12), pinfo, tree)
+    local dis = packed_dt:get_dissector(head.protoid) or data_dis
+    dis:call(buffer(12):tvb(), pinfo, tree)
+end
+msgtype_dt:add(2, packed_proto)
+
+local fcp_proto = Proto("feathernet_control","FeatherNet Control Protocol")
+
+local fcp_msgtype = {
+    [1] = "Solicit",
+    [2] = "Advertise",
+}
+local fcp_mtype_pfield = ProtoField.int32("feathernet_control.msgtype", "Message Type", base.DEC, fcp_msgtype)
+local fcp_subject_pfield = ProtoField.uint32("feathernet_control.subject", "Subject", base.HEX)
+local fcp_flags_pfield = ProtoField.uint32("feathernet_control.flags", "flags", base.HEX)
+fcp_proto.fields = {
+    fcp_mtype_pfield,
+    fcp_subject_pfield,
+    fcp_flags_pfield,
+}
+
+function fcp_proto.dissector(buffer,pinfo,tree)
+    pinfo.columns.protocol = "FCP"
+
+    local mtype = buffer(0,4)
+    tree:add(fcp_mtype_pfield, mtype:int())
+    local subject = buffer(4,4)
+    tree:add(fcp_subject_pfield, subject:uint())
+
+    pinfo.columns.info = string.format("%s %x", fcp_msgtype[mtype:int()] or "UNK", subject:uint())
+
+    if buffer:len() >= 12 then
+        local flags = buffer(8,4)
+        tree:add(fcp_flags_pfield, flags:uint())
+        pinfo.columns.info--[[@as Column]]:append(string.format(" flags %x", flags:uint()))
+    end
+
+end
+
+packed_dt:add(2,fcp_proto)
 
 local peerinfo_proto = Proto("featherbridge.peerinfo","FeatherBridge Peer Info")
 
@@ -241,7 +291,7 @@ function peerinfo_proto.dissector(buffer,pinfo,tree)
         if dissect then
             dissect(data, pinfo, option)
         else
-            option:add(data, "Data")
+            data_dis:call(data:tvb(), pinfo, option)
         end
         if tlvs:len()==thisopt:len() then
             break

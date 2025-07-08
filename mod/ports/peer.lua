@@ -65,9 +65,8 @@ then packed body per-protocol...
     my(player i32, port i32) was (bridge i32, player i32, port u16, info_ticks_ago u16, data_ticks_ago u16)
   
   routing info
-    neighbor i32
-      local
-      via (list of bridge ids along path)
+    dest i32, age u16
+    num hops (uint8) [bridge id int32 from self to dest, not including self/dest]
     
   ip tunnel status?
     map info? recv_ticks_ago?
@@ -87,6 +86,7 @@ then packed body per-protocol...
 peer mapex for denser messages?
 some way to derive a map-hash from just listing everything locally to save the exchange when all matches?
 some kind of loop detection/spanning-tree exchange? elect a leader? ip tunnel or lowest id?
+
 
 ]]
 
@@ -206,6 +206,32 @@ mtype_handlers[msgtype.raw] = function(self, packet)
   }, self)
 end
 
+mtype_handlers[msgtype.packed] = function(self, packet)
+  local
+  ---@type int32
+  ptype,
+  ---@type int32
+  src,
+  ---@type int32
+  dest,
+  ---@type integer
+  i = string.unpack(">xi4i4i4", packet)
+
+  local handler = protocol.handlers[ptype]
+  if handler and handler.unpack then
+    local unpacked = handler.unpack({
+        proto = ptype,
+        src_addr = src,
+        dest_addr = dest,
+        retry_count = 2,
+        payload = {},
+      }, packet:sub(i))
+    if unpacked then
+      bridge.send(unpacked, self)
+    end
+  end
+end
+
 ---@type {[QualityID]:{[SignalIDType]:{[string]:boolean}}}
 local pack_skip_list = {
   normal = {
@@ -233,6 +259,16 @@ function peer:send(packet)
   self:expire_partner()
   if not self.partner then return end
   if not (self.player==0 or game.get_player(self.player).connected) then return end
+
+  local handler = protocol.handlers[packet.proto]
+  if handler and handler.pack then
+    local data = handler.pack(packet)
+    if data then
+      local head = string.pack(">Bi4i4i4", msgtype.packed, packet.proto, packet.src_addr, packet.dest_addr)
+      helpers.send_udp(self.port, head..data, self.player)
+      return
+    end
+  end
 
   local qgroups = {}
   for _, signal in pairs(packet.payload) do
@@ -345,6 +381,7 @@ local function ticks_ago(t)
   end
 end
 
+---@public
 function peer:send_peer_info()
   self:expire_partner()
   if not (self.player==0 or game.get_player(self.player).connected) then return end
@@ -370,21 +407,26 @@ function peer:send_peer_info()
   helpers.send_udp(self.port, table.concat(out), self.player)
 end
 
-
-function peer:expire_partner()
+---@public
+---@param force? boolean force the peer to expire, even if timer is not run out
+function peer:expire_partner(force)
   local partner = self.partner
   if not partner then return end
 
   -- more than ~18 minutes with no info report, missed three cycles!
-  if ticks_ago(partner.last_info) == 0xffff then
+  if force or ticks_ago(partner.last_info) == 0xffff then
     self.partner = nil
   end
 end
 
+---@public
+---@return string
 function peer:label()
   return string.format("u%i:%i", self.player, self.port)
 end
 
+---@public
+---@return string
 function peer:status()
   local partner = "-"
   if self.partner then

@@ -1,12 +1,12 @@
 ---@class (exact) Neighbor
----@field bridge_port FBBridgePort? # known port if any
----@field address int32 # neighbor's link layer address
----@field last_seen MapTick
----@field last_sought MapTick
+---@field public bridge_port FBBridgePort? # known port if any
+---@field public address int32 # neighbor's link layer address
+---@field public last_seen MapTick
+---@field public last_sought MapTick
 
 ---@class (exact) FBBridgePort
----@field send fun(self:FBBridgePort, packet:QueuedPacket)
----@field label fun(self:FBBridgePort):string
+---@field public send fun(self:FBBridgePort, packet:QueuedPacket)
+---@field public label fun(self:FBBridgePort):string
 
 ---@class FBBridge
 local bridge = {}

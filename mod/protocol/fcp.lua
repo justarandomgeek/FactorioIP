@@ -79,6 +79,35 @@ protocol.handlers[2] = {
       handler(router, packet)
     end
   end,
+  pack = function (packet)
+    local mtype = protocol.find_signal(packet.payload, fcpmsgtype)
+    local subject = protocol.find_signal(packet.payload, fcpsubject)
+    if mtype == 2 then
+      local flags = protocol.find_signal(packet.payload, fcpflags)
+      return string.pack(">i4i4i4", mtype, subject, flags)
+    else
+      return string.pack(">i4i4", mtype, subject)
+    end
+  end,
+  unpack = function (packet, data)
+    if #data < 8 then return end
+    local mtype, i = string.unpack(">i4", data, 1)
+    local subject,flags = 0,0
+    if mtype==2 then
+      if #data < 12 then return end
+      subject,flags,i = string.unpack(">i4i4", data, i)
+    else
+      subject,i = string.unpack(">i4", data, i)
+    end
+
+    packet.payload = {
+      protocol.signal_value(fcpmsgtype, mtype),
+      protocol.signal_value(fcpsubject, subject),
+      protocol.signal_value(fcpflags, flags),
+    }
+
+    return packet
+  end,
 }
 
 return {

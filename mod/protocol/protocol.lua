@@ -1,6 +1,8 @@
 
----@class FBProtocol
----@field dispatch fun(router:FBRouterPort, packet:QueuedPacket) # handle a packet dispatched from the switch to the Router port
+---@class (exact) FBProtocol
+---@field public dispatch fun(router:FBRouterPort, packet:QueuedPacket) # handle a packet dispatched from the switch to the Router port
+---@field public pack? fun(packet:QueuedPacket):string? # pack a payload for efficient transmission to a peer; return nil to refuse pack and send raw
+---@field public unpack? fun(packet:QueuedPacket, data:string):QueuedPacket? # packet has header already set, just fill in the payload; return nil to drop
 
 ---@class FBProtocolLib
 return {
