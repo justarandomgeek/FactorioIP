@@ -185,8 +185,21 @@ function fcp_proto.dissector(buffer,pinfo,tree)
     end
 
 end
-
 packed_dt:add(2,fcp_proto)
+
+local mapreq_proto = Proto("feathernet_mapreq","FeatherNet Map Request")
+local mapreqid_pfield = ProtoField.uint32("feathernet_mapreq.id", "Map ID", base.HEX)
+mapreq_proto.fields = {
+    mapreqid_pfield,
+}
+function mapreq_proto.dissector(buffer,pinfo,tree)
+    pinfo.columns.protocol = "MapReq"
+
+    local id = buffer(0,4)
+    tree:add(mapreqid_pfield, id:uint())
+    pinfo.columns.info = string.format("Request Map %x", id:uint())
+end
+packed_dt:add(3,mapreq_proto)
 
 local peerinfo_proto = Proto("featherbridge.peerinfo","FeatherBridge Peer Info")
 
