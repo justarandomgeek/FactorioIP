@@ -4,7 +4,7 @@
 "title": "Feathernet Bridge",
 "version": "2.0.0",
 "author": "justarandomgeek",
-"dependencies": ["base"],
+"dependencies": ["base >= 2.0.59"],
 "factorio_version": "2.0",
 "description": "Allows combinator signals to be routed between worlds, and to/from real computer networks."
 }
