@@ -212,17 +212,22 @@ local opt_pfield = ProtoField.none("featherbridge.peerinfo.opt", "Option")
 local peeropt_names = {
     [1] = "Last Known Partner",
     [2] = "Other Known Peers",
+    [3] = "Bridge Route",
 }
 local opttype_pfield = ProtoField.uint8("featherbridge.peerinfo.opt.type", "Option Type", base.DEC, peeropt_names)
 local optsize_pfield = ProtoField.uint8("featherbridge.peerinfo.opt.size", "Option Size", base.DEC )
 
-local partid_pfield = ProtoField.uint8("featherbridge.peerinfo.opt.partner.bridgeid", "Bridge ID", base.HEX)
+local partid_pfield = ProtoField.uint32("featherbridge.peerinfo.opt.partner.bridgeid", "Bridge ID", base.HEX)
 local myplayer_pfield = ProtoField.uint32("featherbridge.peerinfo.opt.my.player", "Player ID", base.DEC)
 local myport_pfield = ProtoField.uint32("featherbridge.peerinfo.opt.my.port", "Port", base.DEC)
 local partplayer_pfield = ProtoField.uint32("featherbridge.peerinfo.opt.partner.player", "Player ID", base.DEC)
 local partport_pfield = ProtoField.uint32("featherbridge.peerinfo.opt.partner.port", "Port", base.DEC)
 local partlastinfo_pfield = ProtoField.uint16("featherbridge.peerinfo.opt.partner.last_info", "Last Info", base.DEC)
 local partlastdata_pfield = ProtoField.uint16("featherbridge.peerinfo.opt.partner.last_data", "Last Data", base.DEC)
+
+local rtdest_pfield = ProtoField.uint32("featherbridge.peerinfo.opt.route.dest", "Dest", base.HEX)
+local rtage_pfield = ProtoField.uint16("featherbridge.peerinfo.opt.route.age", "Age", base.DEC)
+local rtpath_pfield = ProtoField.string("featherbridge.peerinfo.opt.route.path", "Path")
 
 peerinfo_proto.fields = {
     peerversion_pfield,
@@ -239,6 +244,9 @@ peerinfo_proto.fields = {
     partport_pfield,
     partlastinfo_pfield,
     partlastdata_pfield,
+    rtdest_pfield,
+    rtage_pfield,
+    rtpath_pfield,
 }
 
 ---@param buffer TvbRange
@@ -270,7 +278,20 @@ local peeropts_dissect = {
 
         tree:set_text(string.format("Other Known Peer: %x", buffer(6,4):uint()))
     end,
+    [3] = function (buffer, pinfo, tree)
+        local dest = buffer(0,4)
+        local age = buffer(4,2)
+        local num_hops = buffer(6,1)
 
+        tree:add(rtdest_pfield, dest)
+        tree:add(rtage_pfield, age)
+
+        local path = {}
+        for i = 1, num_hops:uint(), 1 do
+            path[i] = string.format("%x", buffer(7+((i-1)*4),4):uint())
+        end
+        tree:add(rtpath_pfield, buffer(6, 1+(num_hops:uint()*4)), "["..table.concat(path, ", ").."]")
+    end
 }
 
 function peerinfo_proto.dissector(buffer,pinfo,tree)
