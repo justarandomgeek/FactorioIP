@@ -61,6 +61,8 @@ end
 
 ---@param packet string
 function router:on_udp_packet_received(packet)
+  -- too short to contain valid headers
+  if #packet < 44 then return end
   local greflags,ptype = string.unpack(">I2I2", packet)
   if greflags ~= 0 then return end
   if ptype ~= 0x86dd then return end

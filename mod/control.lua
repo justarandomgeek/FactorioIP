@@ -66,6 +66,7 @@ script.on_init(function()
     neighbors = {},
     peers = {},
     remote_ports = {},
+    routes = {},
   }
 end)
 
@@ -77,6 +78,7 @@ end)
 
 script.on_configuration_changed(function(change)
   storage.neighbors = {}
+  storage.routes = {}
   for _, peer in pairs(storage.peers) do
     peer:on_configuration_changed(change)
   end
@@ -177,6 +179,16 @@ commands.add_command("FBstatus", "", function (param)
     local port = neighbor.bridge_port and neighbor.bridge_port:label() or "-"
     out[#out+1] = string.format("addr %8X port %s last_seen %i last_sought %i", bit32.band(neighbor.address), port, game.tick-neighbor.last_seen, game.tick-neighbor.last_sought)
   end
+
+  out[#out+1] = "\nroutes:"
+  for dest,route in pairs(storage.routes) do
+    local path = {}
+    for _,p in pairs(route.path) do 
+      path[#path+1] = string.format("%8X", p)
+    end
+    out[#out+1] = string.format("%8X age %i via [%s]", bit32.band(dest), game.tick-route.tick, table.concat(path, ", "))
+  end
+
   player.print(table.concat(out, "\n"))
 end)
 

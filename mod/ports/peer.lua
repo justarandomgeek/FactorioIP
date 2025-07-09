@@ -29,6 +29,7 @@ end
 ---@param change ConfigurationChangedData
 function peer:on_configuration_changed(change)
   self.partner = nil
+  self:send_peer_info()
 end
 
 --[[
@@ -64,17 +65,22 @@ then packed body per-protocol...
   02 other known peer
     my(player i32, port i32) was (bridge i32, player i32, port u16, info_ticks_ago u16, data_ticks_ago u16)
   
-  routing info
-    dest i32, age u16
+  03 bridge routing info
+    dest bridge i32, age u16,
     num hops (uint8) [bridge id int32 from self to dest, not including self/dest]
-    
+
+  neighbor routing info
+    bridge id i32 num neighbors u16 [neighbor i32 age u16]
+  map info?
+    elected root bridge id? map hash?
+    elect based on route info? lowest bridge id? get map first then announce?
   ip tunnel status?
     map info? recv_ticks_ago?
   active mods?
   list supported packed protocols?
     list fnet protoids
 
-0x04 fragmented message
+fragmented message
   msg id (uint32) random? sequential? hash some header bits + tick?
   offset (uint32)
   flags
@@ -148,6 +154,7 @@ local mtype_handlers = {}
 
 ---@param packet string
 function peer:on_udp_packet_received(packet)
+  if #packet < 2 then return end
   ---@type msgtype
   local mtype = string.unpack(">B", packet)
   local handler = mtype_handlers[mtype]
@@ -159,19 +166,12 @@ function peer:on_udp_packet_received(packet)
   end
 end
 
-mtype_handlers[msgtype.raw] = function(self, packet)
-  local
-  ---@type int32
-  ptype,
-  ---@type int32
-  src,
-  ---@type int32
-  dest,
-  ---@type uint8
-  qual_sections,
-  ---@type integer
-  i = string.unpack(">xi4i4i4B", packet)
-
+---@param qual_sections uint8
+---@param packet string
+---@param i integer
+---@return LogisticFilter[] filters
+---@return integer i
+local function read_raw_signals(qual_sections, packet,i)
   ---@type LogisticFilter[]
   local filters = {}
   -- pre-allocate array part...
@@ -197,16 +197,39 @@ mtype_handlers[msgtype.raw] = function(self, packet)
       end
     end
   end
-  bridge.send({
-    proto = ptype,
-    src_addr = src,
-    dest_addr = dest,
-    retry_count = 2,
-    payload = filters,
-  }, self)
+  return filters, i
+end
+
+mtype_handlers[msgtype.raw] = function(self, packet)
+  if #packet < 14 then return end
+  local
+  ---@type int32
+  ptype,
+  ---@type int32
+  src,
+  ---@type int32
+  dest,
+  ---@type uint8
+  qual_sections,
+  ---@type integer
+  i = string.unpack(">xi4i4i4B", packet)
+
+  -- this format can't be reasonably length-checked ahead, so just pcall to read...
+  local filters_good, filters = pcall(read_raw_signals, qual_sections, packet, i)
+  if filters_good then
+    bridge.send({
+      proto = ptype,
+      src_addr = src,
+      dest_addr = dest,
+      retry_count = 2,
+      payload = filters,
+    }, self)
+  end
 end
 
 mtype_handlers[msgtype.packed] = function(self, packet)
+  -- header plus at least one data byte...
+  if #packet < 14 then return end
   local
   ---@type int32
   ptype,
@@ -219,14 +242,15 @@ mtype_handlers[msgtype.packed] = function(self, packet)
 
   local handler = protocol.handlers[ptype]
   if handler and handler.unpack then
-    local unpacked = handler.unpack({
+    -- just in case we got a garbage packet...
+    local unpack_good,unpacked = pcall(handler.unpack, {
         proto = ptype,
         src_addr = src,
         dest_addr = dest,
         retry_count = 2,
         payload = {},
       }, packet:sub(i))
-    if unpacked then
+    if unpack_good and unpacked then
       bridge.send(unpacked, self)
     end
   end
@@ -307,14 +331,35 @@ end
 local peerinfo_opt = {
   knownpeer = 1,
   otherpeer = 2,
+  bridgeroute = 3,
 }
 
 ---@type {[peerinfo_opt]:fun(self:FBPeerPort, options:table, data:string)}
 local peerinfo_handlers = {}
 mtype_handlers[msgtype.peerinfo] = function(self, packet)
+  if #packet < 17 then return end
   -- got peer info
   local version, address, player, port, i = string.unpack(">xc6i4I4I2", packet)
-  --TODO: compare versions?
+  local options = {}
+
+  while i < #packet do
+    local unpack_good,typecode,data
+    unpack_good,typecode,data,i = pcall(string.unpack,">Bs2", packet, i)
+    if not unpack_good then
+      -- malformed tlv, fatal abort
+      return
+    end
+
+    local handler = peerinfo_handlers[typecode]
+    if handler then
+      local opt_good = pcall(handler, self, options, data)
+      if not opt_good then
+        options.bad_option = (options.bad_option or 0) + 1
+      end
+    end
+    i = i
+  end
+
   local lastpartner = self.partner
   if lastpartner and lastpartner.address == address then
     lastpartner.player = player
@@ -332,17 +377,31 @@ mtype_handlers[msgtype.peerinfo] = function(self, packet)
     }
   end
 
-  local options = {}
-
-  while i < #packet do
-    local typecode,data
-    typecode,data,i = string.unpack(">Bs2", packet, i)
-
-    local handler = peerinfo_handlers[typecode]
-    if handler then
-      handler(self, options, data)
+  if options.routes then
+    local drop = {[storage.address]=true}
+    for _, other in pairs(storage.peers) do
+      if other.partner then
+        drop[other.partner.address] = true
+      end
     end
-    i = i
+    for dest, route in pairs(options.routes) do
+      -- if route is for or via me or direct peers, just drop it. local is always better.
+      if drop[dest] then goto continue end
+      for _,p in pairs(route.path) do
+        if drop[p] then goto continue end
+      end
+
+      route.num_hops = route.num_hops+1
+      table.insert(route.path, 1, address)
+
+      local oldroute = storage.routes[dest]
+      if not oldroute or route.num_hops <= oldroute.num_hops then
+        -- if no old route or new route is <= old route, replace it and set send_info
+        storage.routes[dest] = route
+        --options.send_info = true
+      end
+      ::continue::
+    end
   end
 
   if options.send_info or not options.known_peer then
@@ -359,6 +418,15 @@ peerinfo_handlers[peerinfo_opt.knownpeer] = function(self, options, data)
   end
 end
 
+peerinfo_handlers[peerinfo_opt.bridgeroute] = function (self, options, data)
+  local dest_bridge,age,num_hops,i = string.unpack(">i4I2B", data)
+  local path = {}
+  for j = 1, num_hops, 1 do
+    path[j],i = string.unpack(">i4", data, i)
+  end
+  options.routes = options.routes or {}
+  options.routes[dest_bridge] = {dest=dest_bridge, tick=game.tick-age, num_hops=num_hops, path=path}
+end
 
 ---@param type_id uint8
 ---@param pack string
@@ -401,7 +469,18 @@ function peer:send_peer_info()
     local partner = other.partner
     if self ~= other  and partner then
       out[#out+1] = tlv(peerinfo_opt.otherpeer, ">I4I2i4I4I2I2I2", other.player, other.port, partner.address, partner.player, partner.port, ticks_ago(partner.last_info), ticks_ago(partner.last_data))
+      out[#out+1] = tlv(peerinfo_opt.bridgeroute, ">i4I2B", partner.address, ticks_ago(math.max(partner.last_info, partner.last_data)), 0)
     end
+  end
+
+  for dest,route in pairs(storage.routes) do
+    local opt = {
+      string.pack(">i4I2B", dest, ticks_ago(route.tick), table_size(route.path))
+    }
+    for _, p in pairs(route.path) do
+      opt[#opt+1] = string.pack(">i4", p)
+    end
+    out[#out+1] = tlv(peerinfo_opt.bridgeroute, table.concat(opt))
   end
 
   helpers.send_udp(self.port, table.concat(out), self.player)
