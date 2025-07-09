@@ -82,8 +82,8 @@ then packed body per-protocol...
 
 fragmented message
   msg id (uint32) random? sequential? hash some header bits + tick?
-  offset (uint32)
-  flags
+  seq (uint16)
+  flags (8)
     last fragment
   size (uint16)
   data
