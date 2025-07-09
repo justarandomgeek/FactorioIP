@@ -1,6 +1,12 @@
 local protocol = require("protocol.protocol")
 local bridge = require("bridge")
 
+---@class (exact) BridgeRoute
+---@field dest int32
+---@field tick MapTick
+---@field num_hops uint8
+---@field path int32[]
+
 ---@class (exact) FBPeerPort: FBBridgePort, FBRemotePort
 ---@field public type "peer"
 ---@field public port uint16

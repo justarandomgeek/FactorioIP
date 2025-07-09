@@ -7,6 +7,7 @@
 ---@field remote_ports {[integer]:{[int16]:FBRemotePort}} map player->port->Port for dispatching received udp packets
 ---@field nodes {[integer]:FBCombinatorPort}
 ---@field neighbors {[int32]:Neighbor}
+---@field routes {[int32]:BridgeRoute}
 storage = {}
 
 ---@class (exact) QueuedPacket
@@ -52,6 +53,11 @@ script.on_nth_tick(60*60, function(e)
   for addr, neigh in pairs(storage.neighbors) do
     if neigh.last_sought < stale and neigh.last_seen < stale then
       storage.neighbors[addr] = nil
+    end
+  end
+  for dest, route in pairs(storage.routes) do
+    if route.tick < stale then
+      storage.routes[dest] = nil
     end
   end
 end)
