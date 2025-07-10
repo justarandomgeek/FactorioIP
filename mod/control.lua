@@ -36,7 +36,6 @@ script.on_event(defines.events.on_udp_packet_received, function (event)
   local port = player_ports[event.source_port]
   if not port then return end
 
-  ---@type string
   local payload = event.payload
   port:on_udp_packet_received(payload)
 end)
