@@ -252,19 +252,21 @@ To support non-sequential signals, an application may also use a list of Signal 
 
 ### FeatherBridge
 
-Circuit communication outside of factorio is acheived through FeatherBridge, with a mod participating in the circuit network and forwarding packets to/from a local router over GRE (IP protocol 47) via [`socat`](http://www.dest-unreach.org/socat/) relay over localhost udp:
+![FeatherBridge](Screenshots/FeatherBridge.png)
+
+Inside Factorio, each FeatherBridge combinator is simply connected to the main link wire for its local segment, such as a planet's radar-wire link, and each will act as a switch port on the bridge. The bridge will randomly select an address, which may be discovered by FCP Neighbor Discovery.
+
+FeatherBridge can also connect directly to other local games to forward any circuit signal packets. Bridges will periodically exchange PeerInfo, and forward circuit packets as long as their partner appears live.
+
+FeatherBridge does not (yet) do any loop detection, so the user is responsible for not creating loops in either the circuit network or peering links.
+
+The FeatherBridge IP Tunnel is a GRE tunnel relayed to a local router by [`socat`](http://www.dest-unreach.org/socat/):
 
 ```sh
 socat udp:localhost:$factorio_port,bind=localhost:$local_port ip6:$router_ip:47,bind=$local_ip
 ```
 
-Inside Factorio, each FeatherBridge combinator is simply connected to the main link wire, and each will act as a switch port on the bridge. The bridge will randomly select an address, which may be discovered by FCP Neighbor Discovery.
-
-FeatherBridge can also connect directly to another local game to forward any circuit signal packets. Bridges will periodically exchange PeerInfo, and forward circuit packets as long as their partner appears live.
-
-FeatherBridge does not (yet) do any loop detection, so the user is responsible for not creating loops in either the circuit network or peering links.
-
-FeatherBridge supports receiving and re-sharing a prepared signal map of 375 signals (1500 bytes) via Signal Map Transfer, which will be used when translating ordered data packets to/from external networks. FeatherBridge ignores (and does not send) the Extended Map message with header signal indexes, and only supports a single map (mapid=0), but other devices on the network may use other maps for non-IP traffic or for Signal List messages over IP.
+FeatherBridge supports receiving and re-sharing a prepared signal map of 375 signals (1500 bytes) via Signal Map Transfer, which will be used when translating ordered data packets to/from the IP network port. FeatherBridge ignores (and does not send) the Extended Map message with header signal indexes, and only supports a single map (mapid=0), but other devices on the network may use other maps for non-IP traffic or for Signal List messages over IP.
 
 ### Factorio - Feathernet Link Layer
 
@@ -310,7 +312,7 @@ This module can send arbitrary data in Raw Signals mode. There is a keypad for s
 
 ![Map Transfer Request](Screenshots/MTRequest.png)
 
-The Map Transfer Request module will request and record the signal map from FeatherBridge (or other map provider) using the last received FCP Advertise address with the Map Transfer flag set. This is currently triggered manually.
+The Map Transfer Request module will request and record the signal map from FeatherBridge using the last received FCP Advertise address with the IP Tunnel flag set. This is currently triggered manually.
 
 ![Map Generator](Screenshots/MapGen.png)
 
