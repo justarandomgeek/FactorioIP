@@ -223,9 +223,12 @@ local function parse_player_and_port(parameter)
 end
 
 commands.add_command("FBPeer", "", function (param)
+  if not game.get_player(param.player_index).admin then return end
+
   local player,port = parse_player_and_port(param.parameter)
   if not player then return end
   ---@cast port -?
+  if port <= 1024 then return end
 
   local rp = storage.remote_ports
   local pl = rp[player]
@@ -258,6 +261,7 @@ commands.add_command("FBPeer", "", function (param)
 end)
 
 commands.add_command("FBUnpeer", "", function (param)
+  if not game.get_player(param.player_index).admin then return end
   local player,port = parse_player_and_port(param.parameter)
   if not player then return end
   ---@cast port -?
@@ -279,12 +283,14 @@ commands.add_command("FBUnpeer", "", function (param)
 end)
 
 commands.add_command("FBTun", "", function (param)
+  if not game.get_player(param.player_index).admin then return end
   if param.parameter=="close" then
     storage.router:set_tunnel(0,0)
   else
     local player,port = parse_player_and_port(param.parameter)
     if not player then return end
     ---@cast port -?
+    if port <= 1024 then return end
     storage.router:set_tunnel(player,port)
   end
 end)
