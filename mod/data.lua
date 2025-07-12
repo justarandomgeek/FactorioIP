@@ -76,6 +76,20 @@ data:extend{
     },
     results = {{type="item", name="featherbridge-combinator", amount=1}},
   },
+  {
+    type = "mod-data",
+    name = "FeatherBridge-utility-constants",
+    data_type = "FeatherBridgeUtilityConstants",
+    ---@class (exact) FeatherBridgeUtilityConstants
+    ---@field neighbor_expire_port MapTick
+    ---@field neighbor_expire_record MapTick
+    ---@field route_expire MapTick
+    data = {
+      neighbor_expire_port = 60*60,
+      neighbor_expire_record = 15*60*60,
+      route_expire = 15*60*60,
+    }
+  },
 }
 
 meld.meld(data.raw["technology"]["circuit-network"], {

@@ -8,6 +8,8 @@
 ---@field public send fun(self:FBBridgePort, packet:QueuedPacket)
 ---@field public label fun(self:FBBridgePort):string
 
+local consts = prototypes.mod_data["FeatherBridge-utility-constants"].data --[[@as FeatherBridgeUtilityConstants]]
+
 ---@class FBBridge
 local bridge = {}
 
@@ -71,7 +73,7 @@ end
 function bridge.current_port(neighbor)
   if not neighbor then return end
   neighbor.last_sought = game.tick
-  if (game.tick - neighbor.last_seen) > 60*60 then
+  if (game.tick - neighbor.last_seen) > consts.neighbor_expire_port then
     neighbor.bridge_port = nil
     return
   end

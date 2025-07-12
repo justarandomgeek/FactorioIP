@@ -23,6 +23,8 @@ storage = {}
 ---@field public player integer
 ---@field public on_udp_packet_received fun(port:FBRemotePort, packet:string)
 
+local consts = prototypes.mod_data["FeatherBridge-utility-constants"].data --[[@as FeatherBridgeUtilityConstants]]
+
 local bridge = require("bridge")
 
 local ports = {
@@ -48,15 +50,20 @@ script.on_nth_tick(60*60, function(e)
   storage.router:advertise()
 
   -- drop stale neighbor records
-  local stale = game.tick - 15*60*60
-  for addr, neigh in pairs(storage.neighbors) do
-    if neigh.last_sought < stale and neigh.last_seen < stale then
-      storage.neighbors[addr] = nil
+  do
+    local expired = game.tick - consts.neighbor_expire_record
+    for addr, neigh in pairs(storage.neighbors) do
+      if neigh.last_sought < expired and neigh.last_seen < expired then
+        storage.neighbors[addr] = nil
+      end
     end
   end
-  for dest, route in pairs(storage.routes) do
-    if route.tick < stale then
-      storage.routes[dest] = nil
+  do
+    local expired = game.tick - consts.route_expire
+    for dest, route in pairs(storage.routes) do
+      if route.tick < expired then
+        storage.routes[dest] = nil
+      end
     end
   end
 end)
