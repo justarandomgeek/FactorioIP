@@ -193,7 +193,7 @@ function port:status()
     if self.fail_count then
       status[#status+1] = string.format("fail %i retrans %i", self.fail_count, self.next_retransmit)
     end
-    return string.format("node %i queue %i %s", self.unit_number, #self.out_queue, table.concat(status, " "))
+    return string.format("node %i %s queue %i %s", self.unit_number, self.entity.gps_tag, #self.out_queue, table.concat(status, " "))
 end
 
 ---@public
