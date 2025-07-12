@@ -474,7 +474,7 @@ function peer:send_peer_info()
   for _, other in pairs(storage.peers) do
     local partner = other.partner
     if self ~= other  and partner then
-      out[#out+1] = tlv(peerinfo_opt.otherpeer, ">I4I2i4I4I2I2I2", other.player, other.port, partner.address, partner.player, partner.port, ticks_ago(partner.last_info), ticks_ago(partner.last_data))
+      --out[#out+1] = tlv(peerinfo_opt.otherpeer, ">I4I2i4I4I2I2I2", other.player, other.port, partner.address, partner.player, partner.port, ticks_ago(partner.last_info), ticks_ago(partner.last_data))
       out[#out+1] = tlv(peerinfo_opt.bridgeroute, ">i4I2B", partner.address, ticks_ago(math.max(partner.last_info, partner.last_data)), 0)
     end
   end
