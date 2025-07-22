@@ -25,7 +25,6 @@ local function new(ent)
     entity = ent,
     unit_number = ent.unit_number,
     control = ent.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]],
-    next_advertise = game.tick,
     out_queue = {},
   }, port_meta)
 end
@@ -94,7 +93,7 @@ function port:on_tick()
   end
 
   -- read collision check signal
-  local col = net.get_signal(protocol.signals.collision --[[@as SignalID]])
+  local col = net.get_signal(protocol.signals.collision)
 
   if self.did_tx_last_tick then
     self.did_tx_last_tick = nil
@@ -131,9 +130,9 @@ function port:on_tick()
     end
   else
     if col == 1 then -- got someone else's tx!
-      local src = net.get_signal(protocol.signals.src_addr --[[@as SignalID]])
-      local dest_addr = net.get_signal(protocol.signals.dest_addr --[[@as SignalID]])
-      local protoid = net.get_signal(protocol.signals.protoid --[[@as SignalID]])
+      local src = net.get_signal(protocol.signals.src_addr)
+      local dest_addr = net.get_signal(protocol.signals.dest_addr)
+      local protoid = net.get_signal(protocol.signals.protoid)
       local signals = net.signals
       ---@cast signals -?
       ---@type LogisticFilter[]
