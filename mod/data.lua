@@ -90,6 +90,32 @@ data:extend{
       route_expire = 15*60*60,
     }
   },
+  {
+    type = "mod-data",
+    name = "FeatherBridge-Nixie-Plugin",
+    data_type = "NixieTubesPluginData",
+    ---@type NixieTubesPluginData
+    data = {
+      numberType = {
+        FNPR = {
+          code = [[
+            --TODO: remote.call fetch this on first use from runtime protocol lib
+            local protoname = {
+              [1] = "IPV6",
+              [2] = "FCP",
+              [3] = "MAPRQ",
+              [4] = "MAPTX",
+              [5] = "MAPTXX",
+            }
+            return {
+              name = "FNET PROTO",
+              format = enum_format(protoname, "PROT "),
+            }
+          ]]
+        }
+      }
+    }
+  }
 }
 
 meld.meld(data.raw["technology"]["circuit-network"], {
