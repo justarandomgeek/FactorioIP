@@ -109,7 +109,7 @@ data:extend{
             }
             return {
               name = "FNET PROTO",
-              format = enum_format(protoname, "PROT "),
+              format = make_enum_format(protoname, "PROT "),
             }
           ]]
         }
