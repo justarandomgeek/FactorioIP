@@ -1,0 +1,6 @@
+---------------------------------------------------------------------------------------------------
+Version: 2.0.1
+Date: ????
+  Changes:
+    - port configuration commands require player to be admin
+    - Nixie Tubes typecode 'FNPR' for Feathernet Protocol Numbers
