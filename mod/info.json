@@ -4,7 +4,7 @@
 "title": "FeatherNet Bridge",
 "version": "2.0.1",
 "author": "justarandomgeek",
-"dependencies": ["base >= 2.0.59"],
+"dependencies": ["base >= 2.0.59", "? nixie-tubes >= 2.0.7"],
 "factorio_version": "2.0",
 "description": "A link-layer switch for FeatherNet networks, with bridging capabilities across games and to IP networks."
 }
