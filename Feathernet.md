@@ -28,7 +28,7 @@ To allow higher layer protocols to support varied packet structures (reasonably 
 |             1 | IPv6 on vanilla signals|
 |             2 | Feathernet Control     |
 |           3-5 | Signal Map Transfer    |
-| 'TZIP'/0x545z4950 | Train Zip          |
+| 'TZIP'/0x545a4950 | Train Zip          |
 
 ## Feathernet Control
 
