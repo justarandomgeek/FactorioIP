@@ -1,3 +1,5 @@
+---@namespace FeatherBridge
+
 local protocol = require("protocol.protocol")
 
 local ipv6 = {}

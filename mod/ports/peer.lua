@@ -1,3 +1,5 @@
+---@namespace FeatherBridge
+
 local protocol = require("protocol.protocol")
 local bridge = require("bridge")
 
@@ -208,17 +210,8 @@ end
 
 mtype_handlers[msgtype.raw] = function(self, packet)
   if #packet < 14 then return end
-  local
-  ---@type int32
-  ptype,
-  ---@type int32
-  src,
-  ---@type int32
-  dest,
-  ---@type uint8
-  qual_sections,
-  ---@type integer
-  i = string.unpack(">xi4i4i4B", packet)
+  ---@type int32, int32, int32, uint8, integer
+  local ptype, src, dest, qual_sections, i = string.unpack(">xi4i4i4B", packet)
 
   -- this format can't be reasonably length-checked ahead, so just pcall to read...
   local filters_good, filters = pcall(read_raw_signals, qual_sections, packet, i)
@@ -236,15 +229,8 @@ end
 mtype_handlers[msgtype.packed] = function(self, packet)
   -- header plus at least one data byte...
   if #packet < 14 then return end
-  local
-  ---@type int32
-  ptype,
-  ---@type int32
-  src,
-  ---@type int32
-  dest,
-  ---@type integer
-  i = string.unpack(">xi4i4i4", packet)
+  ---@type int32, int32, int32, integer
+  local ptype, src, dest, i = string.unpack(">xi4i4i4", packet)
 
   local handler = protocol.handlers[ptype]
   if handler and handler.unpack then

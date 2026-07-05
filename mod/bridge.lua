@@ -1,3 +1,5 @@
+---@namespace FeatherBridge
+
 ---@class (exact) Neighbor
 ---@field public bridge_port FBBridgePort? # known port if any
 ---@field public address int32 # neighbor's link layer address

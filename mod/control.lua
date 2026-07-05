@@ -1,3 +1,5 @@
+---@namespace FeatherBridge
+
 ---@class (exact) FBStorage
 ---@field address int32 bridge/router address
 ---@field router FBRouterPort

@@ -1,3 +1,5 @@
+---@namespace FeatherBridge
+
 local meld = require('meld')
 local item_sounds = require("__base__.prototypes.item_sounds")
 

@@ -1,3 +1,4 @@
+---@namespace FeatherBridge
 
 ---@class (exact) FBProtocol
 ---@field public dispatch fun(router:FBRouterPort, packet:QueuedPacket) # handle a packet dispatched from the switch to the Router port
