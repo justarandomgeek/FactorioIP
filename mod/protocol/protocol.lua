@@ -34,7 +34,7 @@ return {
     return {
       value = {
         type = signal.type or "item",
-        name = signal.name,
+        name = signal.name--[[@as string]],
         quality = signal.quality or "normal",
         comparator = "=",
       },

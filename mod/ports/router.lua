@@ -1,3 +1,5 @@
+---@namespace FeatherBridge
+
 local protocol = require("protocol.protocol")
 local ipv6 = require("protocol.ipv6")
 local fcp = require("protocol.fcp")

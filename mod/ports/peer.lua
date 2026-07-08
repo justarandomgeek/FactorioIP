@@ -187,11 +187,13 @@ local function read_raw_signals(qual_sections, packet,i)
 
   for _ = 1,qual_sections,1 do
     local quality,num_signals
+    ---@type string, uint16, integer
     quality,num_signals,i = string.unpack(">s1I2", packet, i)
 
     local qvalid = not not qmap[quality]
     for _ = 1,num_signals,1 do
       local typeid,name,value
+      ---@type uint8, string, int32, integer
       typeid,name,value,i = string.unpack(">Bs1i4", packet, i)
       if qvalid then
         local typeinfo = typeinfos[typeid]
@@ -270,11 +272,20 @@ local function pack_skip(signal)
   return stype[signal.name]
 end
 
+---@private
+---@return boolean
+function peer:is_player_connected()
+  if self.player == 0 then return true end
+  local player = game.get_player(self.player)
+  if not player then return false end
+  return player.connected
+end
+
 ---@param packet QueuedPacket
 function peer:send(packet)
   self:expire_partner()
   if not self.partner then return end
-  if not (self.player==0 or game.get_player(self.player).connected) then return end
+  if not self:is_player_connected() then return end
 
   local handler = protocol.handlers[packet.proto]
   if handler and handler.pack then
@@ -444,7 +455,7 @@ end
 ---@public
 function peer:send_peer_info()
   self:expire_partner()
-  if not (self.player==0 or game.get_player(self.player).connected) then return end
+  if not self:is_player_connected() then return end
 
   local out = {
     string.pack(">Bc6i4i4I2", msgtype.peerinfo, packed_version, storage.address, self.player, self.port)

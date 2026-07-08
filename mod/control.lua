@@ -3,13 +3,13 @@
 ---@class (exact) FBStorage
 ---@field address int32 bridge/router address
 ---@field router FBRouterPort
----@field id_to_signal {[integer]:SignalID} --TODO: use LuaXPrototype objects here for free migrations
----@field signal_to_id {[QualityID]:{[SignalIDType]:{[string]:integer}}} --TODO: move this to a local taht's rebuilt on_load
+---@field id_to_signal table<integer,SignalID> --TODO: use LuaXPrototype objects here for free migrations
+---@field signal_to_id table<QualityID, table<SignalIDType, table<string, integer>>> --TODO: move this to a local taht's rebuilt on_load
 ---@field peers FBPeerPort[]
----@field remote_ports {[integer]:{[int16]:FBRemotePort}} map player->port->Port for dispatching received udp packets
----@field nodes {[integer]:FBCombinatorPort}
----@field neighbors {[int32]:Neighbor}
----@field routes {[int32]:BridgeRoute}
+---@field remote_ports table<integer, table<int16, FBRemotePort>> map player->port->Port for dispatching received udp packets
+---@field nodes table<uint64, FBCombinatorPort>
+---@field neighbors table<int32, Neighbor>
+---@field routes table<int32, BridgeRoute>
 storage = {}
 
 ---@class (exact) QueuedPacket
@@ -117,10 +117,11 @@ script.on_event(defines.events.on_player_removed, function (event)
     storage.router:set_tunnel(0,0)
     -- router stays active, so no neighbor cleanup
   end
+  ---@type FBPeerPort[]
   local peers = {}
   for _, peer in pairs(storage.peers) do
     if peer.player ~= event.player_index then
-      peer[#peer+1] = peer
+      peers[#peer+1] = peer
     else
       for _, neigh in pairs(storage.neighbors) do
         if neigh.bridge_port==peer then
@@ -169,7 +170,7 @@ script.on_event(defines.events.on_script_trigger_effect, function (event)
   if event.effect_id == "featherbridge-created" then
     local ent = event.cause_entity
     if ent and ent.type == "constant-combinator" then
-      storage.nodes[ent.unit_number] = ports.combinator(ent)
+      storage.nodes[ent.unit_number --[[@cast -?]]] = ports.combinator(ent)
     end
   end
 end)

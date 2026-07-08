@@ -26,7 +26,7 @@ protocol.handlers[1] = {
       local id = tmap[signal.name]
       if not id then goto continue end
 
-      packet_values[id] = string.pack(">i4", sig.min)
+      packet_values[id] = string.pack(">i4", sig.min or 0)
       if id > top then top = id end
       ::continue::
     end
@@ -55,19 +55,18 @@ function ipv6.parse(packet)
   filters[400] = nil
 
   --dest address...
+  ---@type uint8,int32
   local addrtype,dest = string.unpack(">Bxxxxxxxxxxxi4", packet, 25)
-  ---@cast addrtype uint8
-  ---@cast dest int32
   -- 0 for multicast traffic, low 32bits of dest ip for unicast
   if addrtype == 0xff then
-    dest = 0
+    dest = 0--[[@as int32]]
   end
   
   local len = #packet
   
   for i = 1,len,4 do
     local n = string.unpack(">i4", packet, i)
-    local sig = storage.id_to_signal[((i-1)/4)+1]
+    local sig = storage.id_to_signal[((i-1)/4)--[[@as integer]]+1]
     filters[#filters+1] = protocol.signal_value(sig, n)
   end
   return {

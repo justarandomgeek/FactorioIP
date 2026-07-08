@@ -108,6 +108,7 @@ function port:on_tick()
     else
       -- tx fail
       local pending = self.out_queue[1]
+      ---@cast pending -?
       local retry = true
       if pending.retry_count then
         pending.retry_count = pending.retry_count - 1
@@ -170,13 +171,13 @@ function port:on_tick()
         while control.sections_count < 2 do
           control.add_section()
         end
-        control.sections[1].filters = {
+        control.sections[1]--[[@cast -?]].filters = {
           protocol.signal_value(protocol.signals.collision, 1),
           protocol.signal_value(protocol.signals.protoid, out_packet.proto),
           protocol.signal_value(protocol.signals.src_addr, out_packet.src_addr),
           protocol.signal_value(protocol.signals.dest_addr, out_packet.dest_addr),
         }
-        control.sections[2].filters = out_packet.payload
+        control.sections[2]--[[@cast -?]].filters = out_packet.payload
         control.enabled = true
       end
     end

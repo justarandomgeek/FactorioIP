@@ -1,3 +1,5 @@
+---@diagnostic disable
+
 local data_dis = Dissector.get("data")
 
 local featherbridge_proto = Proto("featherbridge","FeatherBridge Peering")
