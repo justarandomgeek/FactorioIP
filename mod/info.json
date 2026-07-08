@@ -2,7 +2,7 @@
 {
 "name": "FeatherBridge",
 "title": "FeatherNet Bridge",
-"version": "2.1.0",
+"version": "2.1.1",
 "author": "justarandomgeek",
 "dependencies": ["base", "? nixie-tubes"],
 "factorio_version": "2.1",
